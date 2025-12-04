@@ -4,8 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // State
     let isDrawing = false;
-    let strokes = [];
-    let redoStack = [];
+    let layers = [
+        { id: 0, name: 'レイヤー 1', strokes: [], visible: true },
+        { id: 1, name: 'レイヤー 2', strokes: [], visible: true },
+        { id: 2, name: 'レイヤー 3', strokes: [], visible: true }
+    ];
+    let activeLayerId = 0;
+    let redoStacks = [[], [], []];
     let currentStroke = null;
     let backgroundImage = null;
 
@@ -21,6 +26,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSize = 5;
     let wobbleStrength = 2;
     let wobbleSpeed = 5;
+
+    // Zoom State
+    let canvasZoom = 1.0;
+    const MIN_ZOOM = 0.25;
+    const MAX_ZOOM = 2.0;
+
+    // Pan State
+    let isPanMode = false;
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+    let canvasOffset = { x: 0, y: 0 };
+    let isSpacePressed = false;
 
     // Color Presets
     const colorPresets = {
@@ -38,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initApp() {
         setupStartScreen();
         renderPresetTabs();
+        renderLayerPanel();
         setupEventListeners();
         loadColorPreset('spring');
         requestAnimationFrame(animate);
@@ -109,7 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function initCanvas(width, height) {
         canvas.width = width;
         canvas.height = height;
-        strokes = [];
+        layers.forEach(layer => {
+            layer.strokes = [];
+        });
+        redoStacks = [[], [], []];
     }
 
     function renderPresetTabs() {
@@ -170,9 +191,110 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateCanvasTransform() {
+        const canvasWrapper = document.querySelector('.canvas-wrapper');
+        if (canvasWrapper) {
+            const transform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
+            canvasWrapper.style.transform = transform;
+        }
+    }
+
+    function setZoom(zoomValue) {
+        canvasZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomValue));
+        updateCanvasTransform();
+        const zoomPercent = document.getElementById('zoomPercent');
+        if (zoomPercent) {
+            zoomPercent.textContent = Math.round(canvasZoom * 100) + '%';
+        }
+        const zoomSlider = document.getElementById('zoomSlider');
+        if (zoomSlider) {
+            zoomSlider.value = Math.round(canvasZoom * 100);
+        }
+    }
+
+    function resetCanvasPosition() {
+        canvasOffset = { x: 0, y: 0 };
+        updateCanvasTransform();
+    }
+
+    function setPanMode(enabled) {
+        isPanMode = enabled;
+        const panBtn = document.getElementById('panBtn');
+        const canvasWrapper = document.querySelector('.canvas-wrapper');
+
+        if (panBtn) {
+            if (enabled) {
+                panBtn.classList.add('active');
+            } else {
+                panBtn.classList.remove('active');
+            }
+        }
+
+        if (canvasWrapper) {
+            if (enabled) {
+                canvasWrapper.classList.add('pan-mode');
+            } else {
+                canvasWrapper.classList.remove('pan-mode');
+                canvasWrapper.classList.remove('panning');
+            }
+        }
+    }
+
+    function renderLayerPanel() {
+        const layerPanel = document.getElementById('layerPanel');
+        if (!layerPanel) return;
+        layerPanel.innerHTML = '';
+
+        layers.forEach((layer, index) => {
+            const layerItem = document.createElement('div');
+            layerItem.className = 'layer-item';
+            if (index === activeLayerId) {
+                layerItem.classList.add('active');
+            }
+
+            // Visibility Button
+            const visBtn = document.createElement('button');
+            visBtn.className = 'layer-visibility-btn';
+            visBtn.innerHTML = layer.visible ? '👁️' : '👁️‍🗨️';
+            visBtn.title = layer.visible ? '非表示にする' : '表示する';
+            visBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                layer.visible = !layer.visible;
+                renderLayerPanel();
+            });
+
+            // Layer Name
+            const layerName = document.createElement('span');
+            layerName.className = 'layer-name';
+            layerName.textContent = layer.name;
+
+            layerItem.appendChild(visBtn);
+            layerItem.appendChild(layerName);
+
+            // Click to activate layer
+            layerItem.addEventListener('click', () => {
+                activeLayerId = index;
+                renderLayerPanel();
+            });
+
+            layerPanel.appendChild(layerItem);
+        });
+    }
+
     function setupEventListeners() {
         // Drawing Events
         const startDrawing = (e) => {
+            // Pan mode handling
+            if (isPanMode || isSpacePressed) {
+                isPanning = true;
+                panStart = { x: e.clientX - canvasOffset.x, y: e.clientY - canvasOffset.y };
+                const canvasWrapper = document.querySelector('.canvas-wrapper');
+                if (canvasWrapper) {
+                    canvasWrapper.classList.add('panning');
+                }
+                return;
+            }
+
             isDrawing = true;
             const pos = getPos(e);
             currentStroke = {
@@ -185,17 +307,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 points: [{ x: pos.x, y: pos.y }],
                 pattern: activePattern
             };
-            strokes.push(currentStroke);
-            redoStack = [];
+            layers[activeLayerId].strokes.push(currentStroke);
+            redoStacks[activeLayerId] = [];
         };
 
         const moveDrawing = (e) => {
+            // Pan mode handling
+            if (isPanning) {
+                canvasOffset.x = e.clientX - panStart.x;
+                canvasOffset.y = e.clientY - panStart.y;
+                updateCanvasTransform();
+                return;
+            }
+
             if (!isDrawing) return;
             const pos = getPos(e);
             currentStroke.points.push({ x: pos.x, y: pos.y });
         };
 
         const stopDrawing = () => {
+            if (isPanning) {
+                isPanning = false;
+                const canvasWrapper = document.querySelector('.canvas-wrapper');
+                if (canvasWrapper) {
+                    canvasWrapper.classList.remove('panning');
+                }
+                return;
+            }
             isDrawing = false;
             currentStroke = null;
         };
@@ -259,14 +397,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Undo/Redo/Clear
         document.getElementById('undoBtn').addEventListener('click', () => {
-            if (strokes.length > 0) redoStack.push(strokes.pop());
+            const layer = layers[activeLayerId];
+            if (layer.strokes.length > 0) {
+                redoStacks[activeLayerId].push(layer.strokes.pop());
+            }
         });
         document.getElementById('redoBtn').addEventListener('click', () => {
-            if (redoStack.length > 0) strokes.push(redoStack.pop());
+            const redoStack = redoStacks[activeLayerId];
+            if (redoStack.length > 0) {
+                layers[activeLayerId].strokes.push(redoStack.pop());
+            }
         });
         document.getElementById('clearBtn').addEventListener('click', () => {
-            strokes = [];
-            redoStack = [];
+            layers[activeLayerId].strokes = [];
+            redoStacks[activeLayerId] = [];
         });
 
         // Back to Start (Moved here)
@@ -276,8 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (confirm('ホームに戻りますか？ (描いた絵は消えてしまいます)')) {
                     document.getElementById('app-container').style.display = 'none';
                     document.getElementById('start-screen').style.display = 'flex';
-                    strokes = [];
-                    redoStack = [];
+                    layers.forEach(layer => layer.strokes = []);
+                    redoStacks = [[], [], []];
                     backgroundImage = null;
                 }
             });
@@ -285,6 +429,87 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Export
         document.getElementById('exportBtn').addEventListener('click', exportGIF);
+
+        // Zoom Controls
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const zoomResetBtn = document.getElementById('zoomResetBtn');
+
+        if (zoomSlider) {
+            zoomSlider.addEventListener('input', (e) => {
+                setZoom(parseInt(e.target.value) / 100);
+            });
+        }
+
+        if (zoomInBtn) {
+            zoomInBtn.addEventListener('click', () => {
+                setZoom(canvasZoom + 0.1);
+            });
+        }
+
+        if (zoomOutBtn) {
+            zoomOutBtn.addEventListener('click', () => {
+                setZoom(canvasZoom - 0.1);
+            });
+        }
+
+        if (zoomResetBtn) {
+            zoomResetBtn.addEventListener('click', () => {
+                setZoom(1.0);
+                resetCanvasPosition();
+            });
+        }
+
+        // Pan Button
+        const panBtn = document.getElementById('panBtn');
+        if (panBtn) {
+            panBtn.addEventListener('click', () => {
+                setPanMode(!isPanMode);
+            });
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Space key for temporary pan mode
+            if (e.code === 'Space' && !isSpacePressed) {
+                e.preventDefault();
+                isSpacePressed = true;
+                const canvasWrapper = document.querySelector('.canvas-wrapper');
+                if (canvasWrapper && !isPanMode) {
+                    canvasWrapper.classList.add('pan-mode');
+                }
+            }
+
+            // Undo: Ctrl+Z or Cmd+Z
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                const layer = layers[activeLayerId];
+                if (layer.strokes.length > 0) {
+                    redoStacks[activeLayerId].push(layer.strokes.pop());
+                }
+            }
+
+            // Redo: Ctrl+Shift+Z or Cmd+Shift+Z
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+                e.preventDefault();
+                const redoStack = redoStacks[activeLayerId];
+                if (redoStack.length > 0) {
+                    layers[activeLayerId].strokes.push(redoStack.pop());
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            // Release space key
+            if (e.code === 'Space' && isSpacePressed) {
+                isSpacePressed = false;
+                const canvasWrapper = document.querySelector('.canvas-wrapper');
+                if (canvasWrapper && !isPanMode) {
+                    canvasWrapper.classList.remove('pan-mode');
+                }
+            }
+        });
     }
 
     function getPos(e) {
@@ -308,12 +533,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Quantized Time for 8 FPS (Choppy Effect)
         const time = Math.floor(Date.now() / 1000 * 8) / 8;
 
-        strokes.forEach(stroke => {
-            if (stroke.tool === 'tone') {
-                drawTone(ctx, stroke, time);
-            } else {
-                drawStroke(ctx, stroke, time);
-            }
+        // Draw all visible layers
+        layers.forEach(layer => {
+            if (!layer.visible) return;
+            layer.strokes.forEach(stroke => {
+                if (stroke.tool === 'tone') {
+                    drawTone(ctx, stroke, time);
+                } else {
+                    drawStroke(ctx, stroke, time);
+                }
+            });
         });
 
         requestAnimationFrame(animate);
@@ -524,13 +753,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Time for this frame (8 FPS)
                 const time = i / 8;
 
-                // Draw Strokes
-                strokes.forEach(stroke => {
-                    if (stroke.tool === 'tone') {
-                        drawTone(rCtx, stroke, time);
-                    } else {
-                        drawStroke(rCtx, stroke, time);
-                    }
+                // Draw Strokes (all visible layers)
+                layers.forEach(layer => {
+                    if (!layer.visible) return;
+                    layer.strokes.forEach(stroke => {
+                        if (stroke.tool === 'tone') {
+                            drawTone(rCtx, stroke, time);
+                        } else {
+                            drawStroke(rCtx, stroke, time);
+                        }
+                    });
                 });
 
                 // Add Frame
