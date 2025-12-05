@@ -39,16 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let canvasOffset = { x: 0, y: 0 };
     let isSpacePressed = false;
 
-    // Color Presets
+    // Color Presets - Organized by tone
     const colorPresets = {
-        spring: ['#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#FFFFFF', '#000000'],
-        summer: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#F7F7F7', '#FFFFFF', '#000000'],
-        autumn: ['#D96459', '#F2AE72', '#F2E394', '#8C4646', '#588C7E', '#FFFFFF', '#000000'],
-        winter: ['#A0E7E5', '#B4F8C8', '#FBE7C6', '#FFAEBC', '#E2F0CB', '#FFFFFF', '#000000'],
-        cute: ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#FFFFFF'],
-        cool: ['#2C3E50', '#E74C3C', '#ECF0F1', '#3498DB', '#2980B9', '#FFFFFF', '#000000'],
-        pop: ['#FF0099', '#FFFF00', '#00FF00', '#00FFFF', '#6600FF', '#FFFFFF', '#000000'],
-        neon: ['#FF00FF', '#00FFFF', '#00FF00', '#FFFF00', '#FF0000', '#FFFFFF', '#000000']
+        vivid: ['#FF0000', '#FF8800', '#FFD700', '#00FF00', '#00BFFF', '#6A00FF', '#FF1493', '#FFFFFF', '#000000'],
+        pastel: ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#D4BAFF', '#FFBAF3', '#FFFFFF', '#000000'],
+        dark: ['#8B0000', '#CC5500', '#B8860B', '#006400', '#00688B', '#4B0082', '#8B008B', '#FFFFFF', '#000000'],
+        mono: ['#FFFFFF', '#E0E0E0', '#C0C0C0', '#A0A0A0', '#808080', '#606060', '#404040', '#202020', '#000000'],
+        neon: ['#FF0080', '#FF3300', '#FFFF00', '#00FF00', '#00FFFF', '#8000FF', '#FF00FF', '#FFFFFF', '#000000']
     };
 
     // --- Initialization ---
@@ -57,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPresetTabs();
         renderLayerPanel();
         setupEventListeners();
-        loadColorPreset('spring');
+        loadColorPreset('vivid');
         requestAnimationFrame(animate);
     }
 
@@ -141,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(colorPresets).forEach(key => {
             const btn = document.createElement('button');
             btn.className = 'tab-btn';
-            if (key === 'spring') btn.classList.add('active');
+            if (key === 'vivid') btn.classList.add('active');
             btn.dataset.preset = key;
             btn.title = key;
 
@@ -245,9 +242,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!layerPanel) return;
         layerPanel.innerHTML = '';
 
-        layers.forEach((layer, index) => {
+        // Display layers in reverse order (bottom to top: 0, 1, 2)
+        const reversedLayers = [...layers].reverse();
+
+        reversedLayers.forEach((layer, reverseIndex) => {
+            const index = layers.length - 1 - reverseIndex;
             const layerItem = document.createElement('div');
             layerItem.className = 'layer-item';
+            layerItem.draggable = true;
+            layerItem.dataset.layerId = index;
+
             if (index === activeLayerId) {
                 layerItem.classList.add('active');
             }
@@ -275,6 +279,69 @@ document.addEventListener('DOMContentLoaded', () => {
             layerItem.addEventListener('click', () => {
                 activeLayerId = index;
                 renderLayerPanel();
+            });
+
+            // Drag and Drop handlers
+            layerItem.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', index.toString());
+                layerItem.classList.add('dragging');
+            });
+
+            layerItem.addEventListener('dragend', (e) => {
+                layerItem.classList.remove('dragging');
+                // Remove all dragover highlights
+                document.querySelectorAll('.layer-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+
+            layerItem.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                if (!layerItem.classList.contains('dragging')) {
+                    layerItem.classList.add('drag-over');
+                }
+            });
+
+            layerItem.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                layerItem.classList.remove('drag-over');
+            });
+
+            layerItem.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+
+            layerItem.addEventListener('drop', (e) => {
+                e.preventDefault();
+                layerItem.classList.remove('drag-over');
+
+                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                const toIndex = index;
+
+                if (fromIndex !== toIndex && !isNaN(fromIndex)) {
+                    // Swap layers
+                    const fromLayer = layers[fromIndex];
+                    const toLayer = layers[toIndex];
+                    layers[fromIndex] = toLayer;
+                    layers[toIndex] = fromLayer;
+
+                    // Swap redo stacks
+                    const fromRedo = redoStacks[fromIndex];
+                    const toRedo = redoStacks[toIndex];
+                    redoStacks[fromIndex] = toRedo;
+                    redoStacks[toIndex] = fromRedo;
+
+                    // Update active layer index
+                    if (activeLayerId === fromIndex) {
+                        activeLayerId = toIndex;
+                    } else if (activeLayerId === toIndex) {
+                        activeLayerId = fromIndex;
+                    }
+
+                    renderLayerPanel();
+                }
             });
 
             layerPanel.appendChild(layerItem);
@@ -413,11 +480,45 @@ document.addEventListener('DOMContentLoaded', () => {
             redoStacks[activeLayerId] = [];
         });
 
-        // Back to Start (Moved here)
+        // Custom Confirm Dialog Function
+        function showConfirmDialog(message) {
+            return new Promise((resolve) => {
+                const dialog = document.getElementById('confirmDialog');
+                const confirmMessage = document.getElementById('confirmMessage');
+                const okBtn = document.getElementById('confirmOk');
+                const cancelBtn = document.getElementById('confirmCancel');
+
+                if (message) {
+                    confirmMessage.innerHTML = message;
+                }
+
+                dialog.classList.add('active');
+
+                const handleOk = () => {
+                    dialog.classList.remove('active');
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    resolve(true);
+                };
+
+                const handleCancel = () => {
+                    dialog.classList.remove('active');
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    resolve(false);
+                };
+
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+            });
+        }
+
+        // Back to Start
         const backToStartBtn = document.getElementById('backToStartBtn');
         if (backToStartBtn) {
-            backToStartBtn.addEventListener('click', () => {
-                if (confirm('ホームに戻りますか？ (描いた絵は消えてしまいます)')) {
+            backToStartBtn.addEventListener('click', async () => {
+                const confirmed = await showConfirmDialog('ホームに戻りますか？<br>（描いた絵は消えてしまいます）');
+                if (confirmed) {
                     document.getElementById('app-container').style.display = 'none';
                     document.getElementById('start-screen').style.display = 'flex';
                     layers.forEach(layer => layer.strokes = []);
@@ -510,6 +611,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // Sidebar Toggle Buttons
+        const leftSidebarToggle = document.getElementById('leftSidebarToggle');
+        const rightSidebarToggle = document.getElementById('rightSidebarToggle');
+        const leftSidebar = document.querySelector('.left-sidebar');
+        const rightSidebar = document.querySelector('.right-sidebar');
+
+        if (leftSidebarToggle && leftSidebar) {
+            leftSidebarToggle.addEventListener('click', () => {
+                leftSidebar.classList.toggle('collapsed');
+                // Update button icon
+                if (leftSidebar.classList.contains('collapsed')) {
+                    leftSidebarToggle.textContent = '▶';
+                } else {
+                    leftSidebarToggle.textContent = '◀';
+                }
+            });
+        }
+
+        if (rightSidebarToggle && rightSidebar) {
+            rightSidebarToggle.addEventListener('click', () => {
+                rightSidebar.classList.toggle('collapsed');
+                // Update button icon
+                if (rightSidebar.classList.contains('collapsed')) {
+                    rightSidebarToggle.textContent = '◀';
+                } else {
+                    rightSidebarToggle.textContent = '▶';
+                }
+            });
+        }
     }
 
     function getPos(e) {
@@ -583,21 +714,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pattern
         const patternCanvas = document.createElement('canvas');
         const pCtx = patternCanvas.getContext('2d');
-        patternCanvas.width = 10;
-        patternCanvas.height = 10;
+
+        // Pattern size based on stroke size
+        const patternSize = Math.max(10, stroke.size * 2);
+        patternCanvas.width = patternSize;
+        patternCanvas.height = patternSize;
         pCtx.fillStyle = stroke.color;
 
         if (stroke.pattern === 'dot') {
+            const dotRadius = Math.max(2, stroke.size / 3);
             pCtx.beginPath();
-            pCtx.arc(5, 5, 2, 0, Math.PI * 2);
+            pCtx.arc(patternSize / 2, patternSize / 2, dotRadius, 0, Math.PI * 2);
             pCtx.fill();
         } else if (stroke.pattern === 'stripe') {
-            pCtx.beginPath();
-            pCtx.moveTo(0, 10);
-            pCtx.lineTo(10, 0);
-            pCtx.lineWidth = 2;
-            pCtx.strokeStyle = stroke.color;
-            pCtx.stroke();
+            // Draw diagonal stripes as filled shapes
+            const stripeWidth = Math.max(2, stroke.size / 2);
+            pCtx.fillRect(0, 0, stripeWidth, patternSize);
+            pCtx.fillRect(patternSize - stripeWidth, 0, stripeWidth, patternSize);
+        } else if (stroke.pattern === 'solid') {
+            pCtx.fillRect(0, 0, patternSize, patternSize);
         }
 
         const pattern = context.createPattern(patternCanvas, 'repeat');
