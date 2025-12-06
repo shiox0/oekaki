@@ -647,6 +647,7 @@ canvas {
 .canvas-wrapper.pan-mode {
     cursor: grab;
 }
+
 /* Custom Confirm Dialog */
 .confirm-dialog {
     display: none;

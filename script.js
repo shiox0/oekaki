@@ -661,8 +661,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function animate() {
+        // メインcanvasをクリア
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // 背景を描画
         if (backgroundImage) {
             ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
         } else {
@@ -673,16 +675,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Quantized Time for 8 FPS (Choppy Effect)
         const time = Math.floor(Date.now() / 1000 * 8) / 8;
 
-        // Draw all visible layers
+        // 各レイヤーを個別のオフスクリーンcanvasに描画してから重ね合わせる
         layers.forEach(layer => {
             if (!layer.visible) return;
+            if (layer.strokes.length === 0) return; // ストロークがない場合はスキップ
+
+            // オフスクリーンcanvasを作成
+            const offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+            const offscreenCtx = offscreenCanvas.getContext('2d');
+
+            // このレイヤーのストロークを描画
             layer.strokes.forEach(stroke => {
                 if (stroke.tool === 'tone') {
-                    drawTone(ctx, stroke, time);
+                    drawTone(offscreenCtx, stroke, time);
                 } else {
-                    drawStroke(ctx, stroke, time);
+                    drawStroke(offscreenCtx, stroke, time);
                 }
             });
+
+            // オフスクリーンcanvasをメインcanvasに合成
+            ctx.drawImage(offscreenCanvas, 0, 0);
         });
 
         requestAnimationFrame(animate);
@@ -773,27 +787,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawStroke(context, stroke, time) {
         if (stroke.points.length < 2) return;
 
+        context.save(); // コンテキスト状態を保存
+
         context.beginPath();
         context.lineCap = 'round';
         context.lineJoin = 'round';
         context.lineWidth = stroke.size;
-        context.strokeStyle = stroke.tool === 'eraser' ? '#FFFFFF' : stroke.color;
 
-        // Effects
-        if (stroke.effects.neon && stroke.tool !== 'eraser') {
-            context.shadowBlur = 10;
-            context.shadowColor = stroke.color;
-            context.shadowOffsetX = 0;
-            context.shadowOffsetY = 0;
-        } else if (stroke.effects.shadow && stroke.tool !== 'eraser') {
-            context.shadowBlur = 5;
-            context.shadowColor = 'rgba(0, 0, 0, 0.3)';
-            context.shadowOffsetX = 5;
-            context.shadowOffsetY = 5;
+        // 消しゴムツールの場合は透明にする
+        if (stroke.tool === 'eraser') {
+            context.globalCompositeOperation = 'destination-out';
+            context.strokeStyle = 'rgba(0,0,0,1)'; // アルファ値を削除するため不透明な色を使用
         } else {
-            context.shadowBlur = 0;
-            context.shadowOffsetX = 0;
-            context.shadowOffsetY = 0;
+            context.globalCompositeOperation = 'source-over'; // 明示的に設定
+            context.strokeStyle = stroke.color;
+        }
+
+        // Effects - 消しゴムの場合はエフェクトを適用しない
+        if (stroke.tool !== 'eraser') {
+            if (stroke.effects.neon) {
+                context.shadowBlur = 10;
+                context.shadowColor = stroke.color;
+                context.shadowOffsetX = 0;
+                context.shadowOffsetY = 0;
+            } else if (stroke.effects.shadow) {
+                context.shadowBlur = 5;
+                context.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                context.shadowOffsetX = 5;
+                context.shadowOffsetY = 5;
+            }
         }
 
         if (stroke.tool === 'dotted') {
@@ -825,7 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Outline Effect
+        // Outline Effect - 消しゴムの場合はスキップ
         if (stroke.effects.outline && stroke.tool !== 'eraser') {
             context.save();
             context.lineWidth = stroke.size + 4;
@@ -836,9 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         context.stroke();
 
-        // Reset
-        context.shadowBlur = 0;
-        context.setLineDash([]);
+        context.restore(); // コンテキスト状態を復元
     }
 
     async function exportGIF() {
@@ -897,16 +917,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Time for this frame (8 FPS)
                 const time = i / 8;
 
-                // Draw Strokes (all visible layers)
+                // Draw Strokes (all visible layers) - レイヤーごとに個別のcanvasに描画
                 layers.forEach(layer => {
                     if (!layer.visible) return;
+                    if (layer.strokes.length === 0) return;
+
+                    // オフスクリーンcanvasを作成
+                    const offscreenCanvas = document.createElement('canvas');
+                    offscreenCanvas.width = canvas.width;
+                    offscreenCanvas.height = canvas.height;
+                    const offscreenCtx = offscreenCanvas.getContext('2d');
+                    // スケールを適用
+                    offscreenCtx.scale(scale, scale);
+
+                    // このレイヤーのストロークを描画
                     layer.strokes.forEach(stroke => {
                         if (stroke.tool === 'tone') {
-                            drawTone(rCtx, stroke, time);
+                            drawTone(offscreenCtx, stroke, time);
                         } else {
-                            drawStroke(rCtx, stroke, time);
+                            drawStroke(offscreenCtx, stroke, time);
                         }
                     });
+
+                    // オフスクリーンcanvasをメインresizeCanvasに合成
+                    // スケールをリセットして合成
+                    rCtx.save();
+                    rCtx.setTransform(1, 0, 0, 1, 0, 0);
+                    rCtx.drawImage(offscreenCanvas, 0, 0);
+                    rCtx.restore();
                 });
 
                 // Add Frame
