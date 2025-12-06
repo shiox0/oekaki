@@ -354,7 +354,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Pan mode handling
             if (isPanMode || isSpacePressed) {
                 isPanning = true;
-                panStart = { x: e.clientX - canvasOffset.x, y: e.clientY - canvasOffset.y };
+                // タッチイベントとマウスイベントの両方に対応
+                const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+                const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+                panStart = { x: clientX - canvasOffset.x, y: clientY - canvasOffset.y };
                 const canvasWrapper = document.querySelector('.canvas-wrapper');
                 if (canvasWrapper) {
                     canvasWrapper.classList.add('panning');
@@ -381,8 +384,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const moveDrawing = (e) => {
             // Pan mode handling
             if (isPanning) {
-                canvasOffset.x = e.clientX - panStart.x;
-                canvasOffset.y = e.clientY - panStart.y;
+                // タッチイベントとマウスイベントの両方に対応
+                const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+                const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+                canvasOffset.x = clientX - panStart.x;
+                canvasOffset.y = clientY - panStart.y;
                 updateCanvasTransform();
                 return;
             }
@@ -645,9 +651,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getPos(e) {
         const rect = canvas.getBoundingClientRect();
+        // タッチイベントとマウスイベントの両方に対応
+        const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
         return {
-            x: (e.clientX - rect.left) * (canvas.width / rect.width),
-            y: (e.clientY - rect.top) * (canvas.height / rect.height)
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
         };
     }
 
