@@ -1,171 +1,3139 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>おえかきボード</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ぷにぷにルーム＋ 🏠 おへやづくりエディタ / プリセット部屋入り</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --cream:#fff8f0; --pink:#ffb6d9; --pink-d:#ff8fc4; --mint:#b3f0dc; --mint-d:#7fd9bd;
+    --brown:#8a6248; --brown-l:#b08968; --shadow:rgba(138,98,72,.18);
+    --bounce:cubic-bezier(.34,1.56,.64,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{width:100%;height:100%;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","ヒラギノ丸ゴ ProN W4","BIZ UDGothic","Yu Gothic UI",system-ui,sans-serif;touch-action:none}
+  #scene{position:fixed;inset:0;display:block}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:var(--brown)}
+
+  #logo{position:fixed;top:10px;left:12px;z-index:10;pointer-events:none;
+    color:var(--brown);text-shadow:0 2px 0 #fff,0 4px 10px var(--shadow);
+    font-size:18px;font-weight:800;letter-spacing:.04em}
+
+  .panel{background:var(--cream);border:3px solid #fff;border-radius:22px;
+    box-shadow:0 6px 0 var(--shadow),0 10px 24px rgba(138,98,72,.12)}
+
+  /* ---------- 上部ミニボタン ---------- */
+  #topbar{position:fixed;top:8px;right:10px;z-index:10;display:flex;gap:7px}
+  .round-btn{width:42px;height:42px;border-radius:50%;background:var(--cream);
+    border:3px solid #fff;box-shadow:0 4px 0 var(--shadow);font-size:18px;
+    display:grid;place-items:center;transition:transform .15s var(--bounce)}
+  .round-btn:active{transform:translateY(3px) scale(.95);box-shadow:0 1px 0 var(--shadow)}
+
+  /* ---------- フロア切替（右側） ---------- */
+  #floor-switch{position:fixed;right:10px;top:50%;transform:translateY(-80%);z-index:10;
+    display:flex;flex-direction:column;gap:0;background:var(--cream);border:3px solid #fff;
+    border-radius:18px;box-shadow:0 5px 0 var(--shadow);overflow:hidden}
+  .fl-btn{width:52px;height:50px;font-weight:800;font-size:15px;color:var(--brown-l);
+    display:grid;place-items:center;transition:all .2s}
+  .fl-btn.on{background:var(--pink);color:#fff;text-shadow:0 1px 0 var(--pink-d)}
+  .fl-btn + .fl-btn{border-top:2px dashed #f1e4d4}
+
+  /* ---------- 左下フローティング ---------- */
+  #fab{position:fixed;left:10px;bottom:max(190px, calc(env(safe-area-inset-bottom) + 190px));z-index:10;display:flex;flex-direction:column;gap:9px}
+  .fab-btn{width:52px;height:52px;border-radius:50%;background:var(--cream);
+    border:3px solid #fff;box-shadow:0 5px 0 var(--shadow);font-size:22px;
+    display:grid;place-items:center;transition:transform .15s var(--bounce)}
+  .fab-btn:active{transform:translateY(3px) scale(.92);box-shadow:0 1px 0 var(--shadow)}
+
+  /* ---------- ボトムシート ---------- */
+  #sheet{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:20;
+    width:min(100vw,720px);background:var(--cream);
+    border:3px solid #fff;border-bottom:none;border-radius:26px 26px 0 0;
+    box-shadow:0 -8px 24px rgba(138,98,72,.16);
+    padding:4px 10px calc(8px + env(safe-area-inset-bottom));
+    transition:transform .3s var(--bounce);touch-action:pan-x}
+  #body-collapsible{position:relative}
+  #body-collapsible::after{content:"";position:absolute;top:0;right:-2px;bottom:0;width:26px;
+    background:linear-gradient(to left, var(--cream), transparent);pointer-events:none;border-radius:0 12px 12px 0}
+  #sheet-grip{display:grid;place-items:center;padding:2px 0 0;cursor:pointer}
+  #sheet-grip i{display:block;width:46px;height:5px;border-radius:99px;background:#e8d8c4;transition:transform .3s}
+  #sheet.collapsed #body-collapsible{display:none}
+  #sheet.collapsed #sheet-grip i{transform:scaleX(.6)}
+
+  #variantbar{display:flex;align-items:center;gap:8px;padding:6px 6px 2px;min-height:0;
+    overflow-x:auto;scrollbar-width:none;touch-action:pan-x}
+  #variantbar::-webkit-scrollbar{display:none}
+  #variantbar:empty{display:none}
+  .vlabel{font-size:11px;font-weight:800;color:var(--brown-l);white-space:nowrap}
+  .swatch{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:3px solid #fff;
+    box-shadow:0 2px 5px var(--shadow);transition:transform .15s var(--bounce);position:relative}
+  .swatch.on{transform:scale(1.18)}
+  .swatch.on::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;
+    color:#fff;font-weight:900;font-size:15px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .size-pill{flex:0 0 auto;padding:7px 14px;border-radius:99px;background:#fff;font-size:12px;font-weight:800;
+    box-shadow:inset 0 0 0 2px #f1e4d4;transition:all .15s}
+  .size-pill.on{background:var(--mint-d);color:#fff;box-shadow:inset 0 0 0 2px #5cc4a4,0 2px 0 #5cc4a4}
+  .vdiv{flex:0 0 auto;width:2px;height:26px;background:#f1e4d4;border-radius:2px}
+
+  #hotbar{display:flex;gap:9px;overflow-x:auto;scrollbar-width:none;padding:8px 6px 6px;touch-action:pan-x}
+  #hotbar::-webkit-scrollbar{display:none}
+  .item-btn{flex:0 0 auto;width:66px;height:74px;border-radius:18px;background:#fff;
+    box-shadow:inset 0 0 0 2px #f1e4d4;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:3px;transition:all .18s var(--bounce);position:relative}
+  .item-btn .ico{font-size:27px;line-height:1}
+  .item-btn .chip{width:30px;height:30px;border-radius:9px;border:2px solid rgba(255,255,255,.95);
+    box-shadow:0 1px 3px rgba(0,0,0,.15);overflow:hidden;display:flex;flex-direction:column}
+  .item-btn .chip i{flex:1}
+  .item-btn .nm{font-size:9.5px;font-weight:800;color:var(--brown);white-space:nowrap}
+  .item-btn.on{transform:translateY(-7px);box-shadow:inset 0 0 0 3px var(--pink-d),0 7px 14px var(--shadow);background:#fff8fb}
+  .item-btn.on::after{content:"✓";position:absolute;top:-7px;right:-5px;width:22px;height:22px;border-radius:50%;
+    background:var(--pink-d);color:#fff;font-size:12px;font-weight:900;display:grid;place-items:center;
+    border:2.5px solid #fff;box-shadow:0 2px 4px var(--shadow)}
+  #hotbar .note{padding:14px 16px;color:var(--brown);font-weight:800;font-size:13px}
+
+  #tabs{display:flex;gap:5px;padding:4px 2px 2px;border-top:2px dashed #f1e4d4}
+  .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 2px 5px;
+    border-radius:14px;transition:all .18s var(--bounce)}
+  .tab-btn .t-ico{font-size:21px;line-height:1;transition:transform .18s var(--bounce)}
+  .tab-btn .t-nm{font-size:9.5px;font-weight:800;color:var(--brown-l)}
+  .tab-btn.on{background:#fff}
+  .tab-btn.on .t-ico{transform:translateY(-2px) scale(1.18)}
+  .tab-btn.on .t-nm{color:var(--pink-d)}
+  .tab-btn[data-mode="furn"].on{box-shadow:inset 0 -3px 0 var(--pink-d)}
+  .tab-btn[data-mode="wallitem"].on{box-shadow:inset 0 -3px 0 #b88ef0}
+  .tab-btn[data-mode="part"].on{box-shadow:inset 0 -3px 0 #f0b85c}
+  .tab-btn[data-mode="bal"].on{box-shadow:inset 0 -3px 0 #72c97b}
+  .tab-btn[data-mode="floor"].on{box-shadow:inset 0 -3px 0 #c89a6e}
+  .tab-btn[data-mode="wall"].on{box-shadow:inset 0 -3px 0 #5cc4a4}
+  .tab-btn[data-mode="slot"].on{box-shadow:inset 0 -3px 0 #7ba6f0}
+  .tab-btn[data-mode="erase"].on{box-shadow:inset 0 -3px 0 #f08a72}
+
+  /* ---------- オーバーレイ ---------- */
+  .overlay{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:rgba(120,90,70,.35);backdrop-filter:blur(3px)}
+  .overlay.show{display:grid}
+  .overlay .panel{max-width:min(92vw,440px);padding:22px 26px;color:var(--brown);font-size:13.5px;line-height:1.95;max-height:86vh;overflow-y:auto}
+  .overlay h2{font-size:18px;margin-bottom:10px;text-align:center}
+  .overlay .key{display:inline-block;background:#fff;border-radius:8px;padding:0 8px;margin:0 2px;
+    box-shadow:inset 0 0 0 2px #f1e4d4,0 2px 0 #f1e4d4;font-weight:800;font-size:12px}
+  .ok-btn{display:block;margin:14px auto 0;padding:9px 30px;border-radius:999px;
+    background:var(--pink);color:#fff;font-weight:800;font-size:14px;box-shadow:0 4px 0 var(--pink-d);
+    transition:transform .15s var(--bounce)}
+  .ok-btn:active{transform:translateY(3px)}
+  .menu-btn{display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;margin:7px 0;
+    border-radius:16px;background:#fff;font-size:14px;font-weight:800;color:var(--brown);
+    box-shadow:inset 0 0 0 2px #f1e4d4,0 3px 0 #f1e4d4;transition:transform .12s}
+  .menu-btn:active{transform:translateY(2px);box-shadow:inset 0 0 0 2px #f1e4d4}
+  .menu-btn .m-ico{font-size:21px}
+
+  .stepper{display:flex;align-items:center;justify-content:center;gap:14px;margin:8px 0}
+  .stepper b{font-size:15px;min-width:70px;text-align:right}
+  .stepper .val{font-size:22px;font-weight:800;min-width:44px;text-align:center}
+  .step-btn{width:40px;height:40px;border-radius:50%;background:#fff;font-size:18px;font-weight:800;color:var(--brown);
+    box-shadow:inset 0 0 0 2px #f1e4d4,0 3px 0 #f1e4d4}
+  .step-btn:active{transform:translateY(2px);box-shadow:inset 0 0 0 2px #f1e4d4}
+
+  /* ---------- スマホ仮置きの確認バー ---------- */
+  #confirm-bar{position:fixed;left:50%;transform:translateX(-50%) translateY(12px);z-index:25;
+    display:flex;gap:14px;align-items:center;opacity:0;pointer-events:none;
+    transition:all .22s var(--bounce)}
+  #confirm-bar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+  .cf-btn{width:56px;height:56px;border-radius:50%;background:var(--cream);border:3px solid #fff;
+    box-shadow:0 5px 0 var(--shadow);font-size:23px;display:grid;place-items:center;
+    transition:transform .15s var(--bounce)}
+  .cf-btn:active{transform:translateY(3px) scale(.92);box-shadow:0 1px 0 var(--shadow)}
+  .cf-btn.ok{width:68px;height:68px;background:var(--mint);font-size:30px;box-shadow:0 6px 0 #5cc4a4}
+  .cf-btn.no{background:#f6ece2}
+
+  #toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:40;
+    background:var(--cream);border:3px solid #fff;border-radius:999px;padding:7px 20px;
+    color:var(--brown);font-weight:800;font-size:13px;box-shadow:0 4px 0 var(--shadow);
+    opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:540px){
+    #logo{font-size:15px}
+    .item-btn{width:60px;height:70px} .item-btn .ico{font-size:23px}
+    .round-btn{width:38px;height:38px;font-size:16px}
+    .fab-btn{width:48px;height:48px;font-size:20px}
+  }
+</style>
 </head>
-
 <body>
-    <!-- Start Screen -->
-    <div id="start-screen" class="start-screen">
-        <div class="start-card">
-            <h1>🎨 おえかきボード</h1>
-            <div class="start-options">
-                <div class="option-group">
-                    <h2>キャンバスモード</h2>
-                    <div class="ratio-selector">
-                        <button class="ratio-btn" data-w="500" data-h="500">1:1</button>
-                        <button class="ratio-btn" data-w="800" data-h="600">4:3</button>
-                        <button class="ratio-btn" data-w="1280" data-h="720">16:9</button>
-                    </div>
-                    <div class="custom-size">
-                        <input type="number" id="canvasWidth" placeholder="幅" value="800">
-                        <span>x</span>
-                        <input type="number" id="canvasHeight" placeholder="高さ" value="600">
-                    </div>
-                    <button id="startCanvasBtn" class="primary-btn">おえかきをはじめる</button>
-                </div>
+<canvas id="scene"></canvas>
 
-                <div class="divider">
-                    <span>または</span>
-                </div>
+<div id="logo">🏠 ぷにぷにルーム＋</div>
 
-                <div class="option-group">
-                    <h2>画像モード</h2>
-                    <p>好きな写真におえかきしよう！</p>
-                    <input type="file" id="startImageLoader" accept="image/*" hidden>
-                    <button id="startImageBtn" class="secondary-btn">画像を選ぶ</button>
-                </div>
-            </div>
-        </div>
+<div id="topbar">
+  <button class="round-btn" id="btn-day"  title="ひる / よる">🌞</button>
+  <button class="round-btn" id="btn-help" title="あそびかた">❓</button>
+  <button class="round-btn" id="btn-menu" title="メニュー">⚙️</button>
+</div>
+
+<div id="floor-switch">
+  <button class="fl-btn" data-lvl="1">2F</button>
+  <button class="fl-btn on" data-lvl="0">1F</button>
+</div>
+
+<div id="fab">
+  <button class="fab-btn" id="btn-rot"  title="回転 (R)">🔄</button>
+  <button class="fab-btn" id="btn-undo" title="もどす (Z)">↩️</button>
+</div>
+
+<div id="confirm-bar">
+  <button class="cf-btn no" id="btn-confirm-no" title="やめる">✖️</button>
+  <button class="cf-btn" id="btn-confirm-rot" title="かいてん">🔄</button>
+  <button class="cf-btn ok" id="btn-confirm-ok" title="ここに置く！">✅</button>
+</div>
+
+<div id="sheet">
+  <div id="sheet-grip" title="とじる / ひらく"><i></i></div>
+  <div id="body-collapsible">
+    <div id="variantbar"></div>
+    <div id="hotbar"></div>
+  </div>
+  <div id="tabs">
+    <button class="tab-btn on" data-mode="furn"><span class="t-ico">🛋️</span><span class="t-nm">かぐ</span></button>
+    <button class="tab-btn" data-mode="part"><span class="t-ico">🚧</span><span class="t-nm">しきり</span></button>
+    <button class="tab-btn" data-mode="bal"><span class="t-ico">🏡</span><span class="t-nm">そと</span></button>
+    <button class="tab-btn" data-mode="wallitem"><span class="t-ico">🖼️</span><span class="t-nm">かべかけ</span></button>
+    <button class="tab-btn" data-mode="floor"><span class="t-ico">🟫</span><span class="t-nm">ゆか</span></button>
+    <button class="tab-btn" data-mode="wall"><span class="t-ico">🧱</span><span class="t-nm">かべがみ</span></button>
+    <button class="tab-btn" data-mode="slot"><span class="t-ico">🚪</span><span class="t-nm">まど・ドア</span></button>
+    <button class="tab-btn" data-mode="erase"><span class="t-ico">🧹</span><span class="t-nm">けす</span></button>
+  </div>
+</div>
+
+<div class="overlay" id="menu">
+  <div class="panel">
+    <h2>⚙️ メニュー</h2>
+    <button class="menu-btn" id="btn-size"><span class="m-ico">📐</span>へやのサイズ</button>
+    <button class="menu-btn" id="btn-nature-cycle"><span class="m-ico">🌿</span><span id="nature-label">外景：やわらか森</span></button>
+    <button class="menu-btn" id="btn-nature-reroll"><span class="m-ico">🎲</span>外景を再生成</button>
+    <button class="menu-btn" id="btn-save"><span class="m-ico">💾</span>セーブ（room.json）</button>
+    <button class="menu-btn" id="btn-load"><span class="m-ico">📂</span>ロード</button>
+    <button class="menu-btn" id="btn-clear-furniture"><span class="m-ico">🧹</span>家具をすべて削除</button>
+    <button class="menu-btn" id="btn-cat"><span class="m-ico">📦</span>カタログ書き出し（Unity用）</button>
+    <button class="menu-btn" id="btn-snd"><span class="m-ico">🔊</span><span id="snd-label">サウンド：ON</span></button>
+    <button class="ok-btn" id="btn-menu-close">とじる</button>
+  </div>
+</div>
+
+<div class="overlay" id="help">
+  <div class="panel">
+    <h2>🌸 あそびかた 🌸</h2>
+    <div>
+      <b>えらぶ：</b>下のタブ→アイテム→上の<b>いろ・サイズ</b>でカスタム！<br>
+      <b>おく：</b>床や壁をタップ。<span class="key">R</span>か🔄で回転<br>
+      <b>2F：</b>右の「2F」へ切替。<b>かいだん</b>を1Fに置くと2Fに吹き抜けができるよ（ワイド階段は横2マス！）<br>
+      <b>しきり：</b>しきりタブにあるよ。壁・柵・ドア・窓で広いお部屋を区切れるよ<br>
+      <b>そと：</b>🏡タブで部屋の外側にベランダ床・芝生・石だたみを追加できるよ。花壇・木・雑草は、置いた外床の上に配置できるよ<br>
+      <b>外景：</b>⚙️メニューの「外景」で、家の外側に自然な坂・木・岩・草を自動生成できるよ。マス目編集の邪魔はしない舞台装置だよ<br>
+      <b>けす：</b>🧹タブか<span class="key">右クリック</span><br>
+      <b>一から作る：</b>⚙️メニューの「家具をすべて削除」で、床・壁・窓を残したまま家具だけ消せるよ<br>
+      <b>カメラ：</b>ドラッグで回転（手前の壁は自動で透ける）、<b>中ボタン</b>ドラッグ・<b>2本指</b>で上下左右に移動、回転は<b>さわった場所を中心</b>にくるっと回るよ<span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>でも左右＋上下移動<br>
+      <b>💾：</b>保存される room.json はそのまま Unity インポート用だよ
     </div>
+    <button class="ok-btn" id="btn-help-close">つくる！</button>
+  </div>
+</div>
 
-    <!-- Main App -->
-    <div id="app-container" class="app-container" style="display: none;">
-        <!-- Left Sidebar: Tools & Settings -->
-        <div class="sidebar left-sidebar">
-            <div class="logo">🎨 おえかきボード</div>
+<div class="overlay" id="sizer">
+  <div class="panel">
+    <h2>📐 へやのサイズ</h2>
+    <div class="stepper"><b>よこ</b><button class="step-btn" data-t="w" data-d="-1">－</button><span class="val" id="size-w">8</span><button class="step-btn" data-t="w" data-d="1">＋</button><span style="font-size:12px">(6〜12)</span></div>
+    <div class="stepper"><b>おくゆき</b><button class="step-btn" data-t="d" data-d="-1">－</button><span class="val" id="size-d">6</span><button class="step-btn" data-t="d" data-d="1">＋</button><span style="font-size:12px">(6〜10)</span></div>
+    <div style="font-size:12px;text-align:center;margin-top:6px">⚠️ はみ出す家具はおかたづけされるよ</div>
+    <button class="ok-btn" id="btn-size-apply">このサイズにする</button>
+  </div>
+</div>
 
-            <div class="control-group">
-                <label>カラーテーマ</label>
-                <div id="presetTabs" class="preset-tabs">
-                    <!-- Preset tabs generated by JS -->
-                </div>
-            </div>
+<div id="toast"></div>
+<input type="file" id="file-in" accept=".json" style="display:none">
 
-            <div class="control-group">
-                <label>ツール</label>
-                <button class="tool-btn active" data-tool="line">✏️ ペン</button>
-                <button class="tool-btn" data-tool="dotted">⋯ 点線</button>
-                <button class="tool-btn" data-tool="tone">░ トーン</button>
-                <button class="tool-btn" data-tool="eraser">🧼 消しゴム</button>
-            </div>
+<script>
+/* =========================================================
+   ぷにぷにルーム＋ v4.7（しきり・ベランダ拡張・外床家具対応）
+   ・アイテムバリエーション（いろ / サイズ）
+   ・2階 + かいだん（吹き抜け自動生成）
+   ・スマホゲーム風ボトムシートUI
+   保存JSON(v2) = Unity RoomImporter 用エクスポート
+   Unity側変換: z' = -z, rotY = rot * 90°
+   ========================================================= */
+"use strict";
 
-            <div id="pattern-group" class="control-group" style="display: none;">
-                <label>パターン</label>
-                <button class="pattern-btn active" data-pattern="dot">● ドット</button>
-                <button class="pattern-btn" data-pattern="stripe">/// ストライプ</button>
-                <button class="pattern-btn" data-pattern="solid">■ ベタ</button>
-            </div>
+/* ---------- カラーセット（バリエーションの共通言語） ---------- */
+const CSET = {
+  pink:    { name:"ピンク",     sw:"#ffb6d9", main:0xffb6d9, lite:0xffe4f0, deep:0xff8fc4 },
+  mint:    { name:"ミント",     sw:"#b3f0dc", main:0xb3f0dc, lite:0xe2f7ee, deep:0x7fd9bd },
+  lavender:{ name:"ラベンダー", sw:"#d9b8ff", main:0xd9b8ff, lite:0xefe4ff, deep:0xb88ef0 },
+  sky:     { name:"そら",       sw:"#9fd9ff", main:0x9fd9ff, lite:0xddf1fc, deep:0x6fb8e8 },
+  yellow:  { name:"ひまわり",   sw:"#ffd66e", main:0xffd66e, lite:0xfff0b8, deep:0xf0b840 },
+  coral:   { name:"コーラル",   sw:"#f2a48c", main:0xf2a48c, lite:0xfbdacb, deep:0xe07a5a },
+  woodL:   { name:"ウッド明",   sw:"#e6c391", main:0xe6c391, lite:0xf0d7b0, deep:0xc89a6e },
+  woodD:   { name:"ウッド暗",   sw:"#c89a6e", main:0xc89a6e, lite:0xd8b48a, deep:0xa87f56 },
+  white:   { name:"しろ",       sw:"#ffffff", main:0xffffff, lite:0xfff8f0, deep:0xe8ddd0 },
+  heart:   { name:"ハート",     sw:"#ff8fc4" },
+  star:    { name:"おほし",     sw:"#ffd66e" },
+  rainbow: { name:"にじ",       sw:"#9fd9ff" },
+};
+const PALETTE = Object.fromEntries(Object.entries(CSET).filter(([,v])=>v.main!==undefined)
+  .map(([k,v])=>[k, "#"+v.main.toString(16).padStart(6,"0")]));
 
-            <div class="control-group">
-                <label>エフェクト</label>
-                <button class="effect-btn" data-effect="wobbly">〰️ もこもこ</button>
-                <button class="effect-btn" data-effect="outline">🔲 ふちどり</button>
-                <button class="effect-btn" data-effect="shadow">👥 かげ</button>
-                <button class="effect-btn" data-effect="neon">✨ ネオン</button>
-            </div>
+/* ---------- 床・壁紙・建具 ---------- */
+const FLOORS = [
+  { id:"wood_light",  name:"ウッド明", c:0xe6c391 },
+  { id:"wood_dark",   name:"ウッド暗", c:0xc89a6e },
+  { id:"tile_check",  name:"しろチェック", c:0xffffff, c2:0xeae6dd },
+  { id:"tile_mint",   name:"ミントチェック", c:0xb3f0dc, c2:0xe9faf3 },
+  { id:"tile_pink",   name:"ピンクチェック", c:0xffd4e6, c2:0xfff0f6 },
+  { id:"carpet_pink", name:"ピンクじゅうたん", c:0xffd4e6 },
+  { id:"carpet_cream",name:"クリームじゅうたん", c:0xfff3e0 },
+  { id:"carpet_lav",  name:"ラベンダーじゅうたん", c:0xe9defc },
+];
+const OUTDOOR_TILES = [
+  { id:"deck",       name:"デッキ",     ico:"🪵", c:0xd9a66d, c2:0xc89158 },
+  { id:"white_tile", name:"白タイル",   ico:"⬜", c:0xfff8f0, c2:0xe8ddd0 },
+  { id:"grass",      name:"芝生",       ico:"🌿", c:0x8fdc7d, c2:0x75c468 },
+  { id:"stone_path", name:"石だたみ",   ico:"🪨", c:0xcfc8bc, c2:0xb8afa2 },
+  { id:"soil",       name:"土",         ico:"🟫", c:0xb7835a, c2:0x9d6d47 },
+  { id:"_clear",     name:"外床をけす", ico:"🧹", clear:true },
+];
+const WALLPAPERS = [
+  { id:"wp_cream",    name:"クリーム", up:0xfff3e0, low:0xffffff },
+  { id:"wp_pink",     name:"ピンク",   up:0xffe4f0, low:0xfff8fb },
+  { id:"wp_mint",     name:"ミント",   up:0xdff5ec, low:0xf4fbf8 },
+  { id:"wp_lavender", name:"ラベンダー", up:0xe9defc, low:0xf8f4ff },
+  { id:"wp_sky",      name:"そら",     up:0xddf1fc, low:0xf2fafe },
+  { id:"wp_choco",    name:"チョコ",   up:0xe8cdb0, low:0xfff3e0 },
+];
+const SLOTS = [
+  { id:"door_pink",     name:"ドア(ピンク)", ico:"🚪", kind:"door",   accent:0xff8fc4 },
+  { id:"door_mint",     name:"ドア(ミント)", ico:"🚪", kind:"door",   accent:0x7fd9bd },
+  { id:"door_sky",      name:"ドア(そら)",   ico:"🚪", kind:"door",   accent:0x6fb8e8 },
+  { id:"door_wide_pink",name:"両びらき(ピンク)", ico:"🚪", kind:"door", accent:0xff8fc4, span:2 },
+  { id:"door_wide_mint",name:"両びらき(ミント)", ico:"🚪", kind:"door", accent:0x7fd9bd, span:2 },
+  { id:"window_round",  name:"まる窓",       ico:"🪟", kind:"window" },
+  { id:"window_flower", name:"おはな窓",     ico:"🌼", kind:"window" },
+  { id:"window_wide",   name:"よこなが窓",   ico:"🖼️", kind:"window" },
+  { id:"window_big",    name:"おおまど",     ico:"🏞️", kind:"window", span:2 },
+  { id:"_clear",        name:"かべに戻す",   ico:"🔙", kind:"clear" },
+];
 
-            <div class="control-group">
-                <label>ペンの太さ</label>
-                <input type="range" id="sizeSlider" min="1" max="50" value="5">
-            </div>
+/* ---------- 家具カタログ（sizes / colors がバリエーション） ---------- */
+const ITEMS = [
+  { id:"bed", name:"ベッド", ico:"🛏️", layer:"floor", sit:true,
+    sizes:[{sid:"single",name:"シングル",w:2,d:1},{sid:"double",name:"ダブル",w:2,d:2}],
+    colors:["pink","mint","lavender","sky"] },
+  { id:"rug", name:"ラグ", ico:"🟣", layer:"rug",
+    sizes:[{sid:"s",name:"S",w:1,d:1},{sid:"m",name:"M",w:2,d:2},{sid:"l",name:"L",w:3,d:2}],
+    colors:["pink","mint","lavender","yellow"] },
+  { id:"table", name:"テーブル", ico:"🍽️", layer:"floor",
+    sizes:[{sid:"round",name:"まる",w:1,d:1},{sid:"square",name:"しかく",w:1,d:1},{sid:"long",name:"ロング",w:2,d:1}],
+    colors:["woodL","woodD","white"] },
+  { id:"chair", name:"イス", ico:"🪑", layer:"floor", sit:true,
+    colors:["pink","mint","sky","yellow"] },
+  { id:"sofa", name:"ソファ", ico:"🛋️", layer:"floor", sit:true,
+    sizes:[
+      {sid:"single", name:"1P", w:1, d:1},
+      {sid:"double", name:"2P", w:2, d:1},
+      {sid:"wide",   name:"ワイド", w:3, d:1}
+    ],
+    colors:["pink","mint","lavender","sky","yellow"] },
+  { id:"stool", name:"丸スツール", ico:"🟡", layer:"floor", sit:true,
+    sizes:[{sid:"round",name:"まる",w:1,d:1},{sid:"puffy",name:"ぷに",w:1,d:1}],
+    colors:["pink","mint","lavender","sky","yellow","white"] },
+  { id:"bench", name:"ベンチ", ico:"🪑", layer:"floor", sit:true,
+    sizes:[{sid:"short",name:"2人",w:2,d:1},{sid:"wide",name:"3人",w:3,d:1}],
+    colors:["woodL","woodD","pink","mint","sky"] },
+  { id:"desk", name:"デスク", ico:"✏️", layer:"floor",
+    sizes:[{sid:"study",name:"学習",w:2,d:1},{sid:"craft",name:"作業",w:3,d:1}],
+    colors:["woodL","woodD","white","mint"] },
+  { id:"side_table", name:"サイド卓", ico:"🫖", layer:"floor",
+    colors:["woodL","woodD","white","pink","mint"] },
+  { id:"vanity", name:"ドレッサー", ico:"🪞", layer:"floor",
+    sizes:[{sid:"mini",name:"ミニ",w:1,d:1},{sid:"wide",name:"ワイド",w:2,d:1}],
+    colors:["white","pink","mint","lavender"] },
+  { id:"toybox", name:"おもちゃ箱", ico:"🧺", layer:"floor",
+    sizes:[{sid:"mini",name:"ミニ",w:1,d:1},{sid:"wide",name:"ワイド",w:2,d:1}],
+    colors:["pink","mint","sky","yellow","woodL"] },
+  { id:"floor_mirror", name:"姿見", ico:"🪞", layer:"floor",
+    colors:["woodL","woodD","white","pink"] },
+  { id:"cushion", name:"クッション", ico:"🧸", layer:"floor", sit:true,
+    colors:["pink","mint","lavender","yellow"] },
+  { id:"partition", name:"しきり壁", ico:"🚧", layer:"floor", edgeWall:true, partitionKind:"wall",
+    sizes:[{sid:"s1",name:"1マス",w:1,d:1},{sid:"s2",name:"2マス",w:2,d:1},{sid:"s3",name:"3マス",w:3,d:1}],
+    colors:["white","pink","mint","lavender","woodL"] },
+  { id:"partition_fence", name:"しきり柵", ico:"🪵", layer:"floor", edgeWall:true, partitionKind:"fence",
+    sizes:[{sid:"s1",name:"1マス",w:1,d:1},{sid:"s2",name:"2マス",w:2,d:1},{sid:"s3",name:"3マス",w:3,d:1}],
+    colors:["white","woodL","woodD","pink","mint"] },
+  { id:"partition_door", name:"しきりドア", ico:"🚪", layer:"floor", edgeWall:true, partitionKind:"door",
+    sizes:[{sid:"s1",name:"片開き",w:1,d:1},{sid:"s2",name:"両開き",w:2,d:1}],
+    colors:["white","pink","mint","sky","woodL"] },
+  { id:"partition_window", name:"しきり窓", ico:"🪟", layer:"floor", edgeWall:true, partitionKind:"window",
+    sizes:[{sid:"s1",name:"小窓",w:1,d:1},{sid:"s2",name:"大窓",w:2,d:1}],
+    colors:["white","pink","mint","lavender","woodL"] },
+  { id:"stairs", name:"かいだん", ico:"🪜", layer:"floor", stairs:true,
+    sizes:[{sid:"std",name:"ふつう",w:1,d:3},{sid:"wide",name:"ワイド",w:2,d:3}],
+    colors:["woodL","woodD","white"] },
+  { id:"lamp", name:"ランプ", ico:"💡", layer:"floor",
+    colors:["yellow","pink","mint"] },
+  { id:"shelf", name:"ほんだな", ico:"📚", layer:"floor",
+    sizes:[{sid:"mini",name:"ミニ",w:1,d:1},{sid:"wide",name:"ワイド",w:2,d:1}],
+    colors:["woodL","woodD"] },
+  { id:"tv", name:"テレビ", ico:"📺", layer:"floor",
+    sizes:[{sid:"mini",name:"ミニ",w:1,d:1},{sid:"std",name:"ふつう",w:2,d:1}] },
+  { id:"kitchen", name:"キッチン", ico:"🍳", layer:"floor", w:2, d:1,
+    colors:["white","pink","mint"] },
+  { id:"toilet", name:"トイレ", ico:"🚽", layer:"floor", w:1, d:1,
+    colors:["white","pink","mint"] },
+  { id:"bathtub", name:"お風呂", ico:"🛁", layer:"floor", w:2, d:1,
+    colors:["white","pink","mint","sky"] },
+  { id:"washbasin", name:"洗面台", ico:"🚰", layer:"floor", w:1, d:1,
+    colors:["white","pink","mint","sky"] },
+  { id:"chest", name:"チェスト", ico:"🧰", layer:"floor",
+    colors:["woodL","woodD"] },
+  { id:"plant", name:"うえき", ico:"🪴", layer:"floor",
+    colors:["coral","white","sky"] },
+  { id:"flower", name:"おはな", ico:"🌷", layer:"floor",
+    colors:["pink","yellow","lavender"] },
+  { id:"flowerbed_1", name:"花壇1マス", ico:"🌼", layer:"floor", w:1, d:1, outdoorOnly:true,
+    colors:["woodL","woodD","white"] },
+  { id:"flowerbed_2", name:"花壇2マス", ico:"🌸", layer:"floor", w:2, d:1, outdoorOnly:true,
+    colors:["woodL","woodD","white"] },
+  { id:"yard_tree", name:"木", ico:"🌳", layer:"floor", w:1, d:1, outdoorOnly:true,
+    colors:["mint","woodL","yellow"] },
+  { id:"weeds", name:"雑草", ico:"🌱", layer:"floor", w:1, d:1, outdoorOnly:true,
+    colors:["mint","yellow","woodL"] },
+];
+const WALL_ITEMS = [
+  { id:"clock",    name:"ねこどけい", ico:"🕐", h:1.85, colors:["white","pink","mint"] },
+  { id:"art",      name:"がくぶち",   ico:"🖼️", h:1.55, colors:["heart","star","rainbow"] },
+  { id:"painting", name:"キャンバス", ico:"🖼️", h:1.58, colors:["pink","mint","lavender","sky","yellow"] },
+  { id:"poster",   name:"ポスター",   ico:"🎨", h:1.62, colors:["pink","mint","lavender","sky"] },
+  { id:"triangle_deco", name:"三角かざり", ico:"🔻", h:1.72, colors:["pink","mint","lavender","yellow"] },
+  { id:"wall_towel", name:"かべタオル", ico:"🧺", h:0.92, colors:["white","pink","mint","sky"] },
+  { id:"wallshelf",name:"かべだな",   ico:"🪵", h:1.45, colors:["woodL","woodD"] },
+  { id:"walllamp", name:"かべランプ", ico:"🏮", h:1.9,  colors:["yellow","pink"] },
+];
+const CATALOG_VERSION = 17;
+const DEFAULT_ROOM_DATA = {"version":2,"catalogVersion":17,"grid":{"cell":1,"wallHeight":2.5,"levelHeight":2.62,"levels":2},"room":{"w":8,"d":6},"rooms":[],"levels":[{"floor":[{"x":0,"z":0,"mat":"wood_light"},{"x":0,"z":1,"mat":"wood_light"},{"x":0,"z":2,"mat":"wood_light"},{"x":0,"z":3,"mat":"wood_light"},{"x":0,"z":4,"mat":"wood_light"},{"x":0,"z":5,"mat":"wood_light"},{"x":1,"z":0,"mat":"wood_light"},{"x":1,"z":1,"mat":"wood_light"},{"x":1,"z":2,"mat":"wood_light"},{"x":1,"z":3,"mat":"wood_light"},{"x":1,"z":4,"mat":"wood_light"},{"x":1,"z":5,"mat":"wood_light"},{"x":2,"z":0,"mat":"wood_light"},{"x":2,"z":1,"mat":"wood_light"},{"x":2,"z":2,"mat":"wood_light"},{"x":2,"z":3,"mat":"wood_light"},{"x":2,"z":4,"mat":"wood_light"},{"x":2,"z":5,"mat":"wood_light"},{"x":3,"z":0,"mat":"wood_light"},{"x":3,"z":1,"mat":"wood_light"},{"x":3,"z":2,"mat":"wood_light"},{"x":3,"z":3,"mat":"wood_light"},{"x":3,"z":4,"mat":"wood_light"},{"x":3,"z":5,"mat":"wood_light"},{"x":4,"z":0,"mat":"wood_light"},{"x":4,"z":1,"mat":"wood_light"},{"x":4,"z":2,"mat":"wood_light"},{"x":4,"z":3,"mat":"wood_light"},{"x":4,"z":4,"mat":"wood_light"},{"x":4,"z":5,"mat":"wood_light"},{"x":5,"z":0,"mat":"wood_light"},{"x":5,"z":1,"mat":"wood_light"},{"x":5,"z":2,"mat":"wood_light"},{"x":5,"z":3,"mat":"wood_light"},{"x":5,"z":4,"mat":"wood_light"},{"x":5,"z":5,"mat":"wood_light"},{"x":6,"z":0,"mat":"wood_light"},{"x":6,"z":1,"mat":"wood_light"},{"x":6,"z":2,"mat":"wood_light"},{"x":6,"z":3,"mat":"wood_light"},{"x":6,"z":4,"mat":"wood_light"},{"x":6,"z":5,"mat":"wood_light"},{"x":7,"z":0,"mat":"wood_light"},{"x":7,"z":1,"mat":"wood_light"},{"x":7,"z":2,"mat":"wood_light"},{"x":7,"z":3,"mat":"wood_light"},{"x":7,"z":4,"mat":"wood_light"},{"x":7,"z":5,"mat":"wood_light"}],"outdoor":[{"x":7,"z":6,"mat":"grass"},{"x":6,"z":6,"mat":"grass"},{"x":5,"z":6,"mat":"grass"},{"x":4,"z":6,"mat":"grass"},{"x":3,"z":6,"mat":"grass"},{"x":2,"z":6,"mat":"grass"},{"x":1,"z":6,"mat":"grass"},{"x":0,"z":6,"mat":"grass"},{"x":0,"z":7,"mat":"grass"},{"x":1,"z":7,"mat":"grass"},{"x":2,"z":7,"mat":"grass"},{"x":3,"z":7,"mat":"grass"},{"x":4,"z":7,"mat":"grass"},{"x":6,"z":7,"mat":"grass"},{"x":7,"z":7,"mat":"grass"},{"x":5,"z":7,"mat":"grass"},{"x":7,"z":8,"mat":"grass"},{"x":6,"z":8,"mat":"grass"},{"x":5,"z":8,"mat":"grass"},{"x":4,"z":8,"mat":"grass"},{"x":3,"z":8,"mat":"grass"},{"x":2,"z":8,"mat":"grass"},{"x":1,"z":8,"mat":"grass"},{"x":0,"z":8,"mat":"grass"}],"walls":[{"side":"N","i":0,"mat":"wp_cream"},{"side":"N","i":1,"mat":"wp_cream"},{"side":"N","i":2,"mat":"wp_cream","slot":"window_big"},{"side":"N","i":3,"mat":"wp_cream"},{"side":"N","i":4,"mat":"wp_cream"},{"side":"N","i":5,"mat":"wp_cream","slot":"window_big"},{"side":"N","i":6,"mat":"wp_cream"},{"side":"N","i":7,"mat":"wp_cream"},{"side":"S","i":0,"mat":"wp_cream"},{"side":"S","i":1,"mat":"wp_cream"},{"side":"S","i":2,"mat":"wp_cream","slot":"window_big"},{"side":"S","i":3,"mat":"wp_cream"},{"side":"S","i":4,"mat":"wp_cream"},{"side":"S","i":5,"mat":"wp_cream","slot":"window_flower"},{"side":"S","i":6,"mat":"wp_cream"},{"side":"S","i":7,"mat":"wp_cream","slot":"door_sky"},{"side":"W","i":0,"mat":"wp_cream","slot":"door_mint"},{"side":"W","i":1,"mat":"wp_cream"},{"side":"W","i":2,"mat":"wp_cream"},{"side":"W","i":3,"mat":"wp_cream","slot":"window_big"},{"side":"W","i":4,"mat":"wp_cream"},{"side":"W","i":5,"mat":"wp_cream"},{"side":"E","i":0,"mat":"wp_cream"},{"side":"E","i":1,"mat":"wp_cream"},{"side":"E","i":2,"mat":"wp_cream"},{"side":"E","i":3,"mat":"wp_cream"},{"side":"E","i":4,"mat":"wp_cream"},{"side":"E","i":5,"mat":"wp_cream"}],"items":[{"id":"partition","size":"s2","color":"woodL","x":0,"z":2,"rot":0,"layer":"wall","edgeWall":true},{"id":"stairs","size":"wide","color":"woodL","x":6,"z":1,"rot":0,"layer":"floor","edgeWall":false},{"id":"partition","size":"s2","color":"woodL","x":4,"z":2,"rot":0,"layer":"wall","edgeWall":true},{"id":"partition","size":"s2","color":"woodL","x":6,"z":2,"rot":1,"layer":"wall","edgeWall":true},{"id":"partition","size":"s2","color":"woodL","x":6,"z":4,"rot":2,"layer":"wall","edgeWall":true},{"id":"partition_door","size":"s2","color":"woodL","x":2,"z":2,"rot":2,"layer":"wall","edgeWall":true},{"id":"sofa","size":"double","color":"yellow","x":0,"z":5,"rot":2,"layer":"floor","edgeWall":false},{"id":"stool","size":"puffy","color":"pink","x":2,"z":5,"rot":2,"layer":"floor","edgeWall":false},{"id":"kitchen","size":"std","color":"mint","x":6,"z":4,"rot":0,"layer":"floor","edgeWall":false},{"id":"tv","size":"std","color":null,"x":0,"z":2,"rot":0,"layer":"floor","edgeWall":false},{"id":"shelf","size":"wide","color":"woodL","x":5,"z":2,"rot":1,"layer":"floor","edgeWall":false},{"id":"shelf","size":"mini","color":"woodD","x":5,"z":4,"rot":0,"layer":"floor","edgeWall":false},{"id":"toybox","size":"wide","color":"woodL","x":4,"z":1,"rot":2,"layer":"floor","edgeWall":false},{"id":"plant","size":"std","color":"coral","x":0,"z":1,"rot":2,"layer":"floor","edgeWall":false},{"id":"rug","size":"l","color":"yellow","x":0,"z":2,"rot":3,"layer":"rug","edgeWall":false},{"id":"flowerbed_2","size":"std","color":"woodL","x":0,"z":6,"rot":0,"layer":"floor","edgeWall":false},{"id":"flowerbed_2","size":"std","color":"woodL","x":2,"z":6,"rot":0,"layer":"floor","edgeWall":false},{"id":"yard_tree","size":"std","color":"mint","x":7,"z":8,"rot":0,"layer":"floor","edgeWall":false},{"id":"yard_tree","size":"std","color":"mint","x":0,"z":8,"rot":0,"layer":"floor","edgeWall":false},{"id":"weeds","size":"std","color":"mint","x":5,"z":8,"rot":0,"layer":"floor","edgeWall":false},{"id":"weeds","size":"std","color":"mint","x":4,"z":8,"rot":0,"layer":"floor","edgeWall":false},{"id":"weeds","size":"std","color":"mint","x":0,"z":7,"rot":0,"layer":"floor","edgeWall":false},{"id":"weeds","size":"std","color":"mint","x":4,"z":6,"rot":0,"layer":"floor","edgeWall":false}],"wallItems":[{"id":"art","color":"rainbow","l":0,"target":"edge","orient":"H","x":0,"z":2,"face":-1},{"id":"art","color":"star","l":0,"target":"edge","orient":"H","x":5,"z":2,"face":-1},{"id":"clock","color":"white","l":0,"target":"edge","orient":"H","x":1,"z":2,"face":1},{"id":"poster","color":"pink","l":0,"side":"N","i":4},{"id":"wallshelf","color":"woodL","l":0,"target":"edge","orient":"H","x":4,"z":2,"face":1},{"id":"wallshelf","color":"woodL","l":0,"target":"edge","orient":"H","x":6,"z":4,"face":1},{"id":"wallshelf","color":"woodL","l":0,"target":"edge","orient":"H","x":7,"z":4,"face":1},{"id":"walllamp","color":"yellow","l":0,"side":"S","i":1},{"id":"walllamp","color":"yellow","l":0,"side":"N","i":0},{"id":"walllamp","color":"yellow","l":0,"side":"N","i":7},{"id":"walllamp","color":"yellow","l":0,"side":"E","i":5},{"id":"triangle_deco","color":"pink","l":0,"target":"edge","orient":"H","x":4,"z":2,"face":-1},{"id":"wall_towel","color":"white","l":0,"side":"S","i":6}]},{"floor":[{"x":0,"z":0,"mat":"wood_light"},{"x":0,"z":1,"mat":"wood_light"},{"x":0,"z":2,"mat":"wood_light"},{"x":0,"z":3,"mat":"wood_light"},{"x":0,"z":4,"mat":"wood_light"},{"x":0,"z":5,"mat":"wood_light"},{"x":1,"z":0,"mat":"wood_light"},{"x":1,"z":1,"mat":"wood_light"},{"x":1,"z":2,"mat":"wood_light"},{"x":1,"z":3,"mat":"wood_light"},{"x":1,"z":4,"mat":"wood_light"},{"x":1,"z":5,"mat":"wood_light"},{"x":2,"z":0,"mat":"wood_light"},{"x":2,"z":1,"mat":"wood_light"},{"x":2,"z":2,"mat":"wood_light"},{"x":2,"z":3,"mat":"wood_light"},{"x":2,"z":4,"mat":"wood_light"},{"x":2,"z":5,"mat":"wood_light"},{"x":3,"z":0,"mat":"wood_light"},{"x":3,"z":1,"mat":"wood_light"},{"x":3,"z":2,"mat":"wood_light"},{"x":3,"z":3,"mat":"wood_light"},{"x":3,"z":4,"mat":"wood_light"},{"x":3,"z":5,"mat":"wood_light"},{"x":4,"z":0,"mat":"wood_light"},{"x":4,"z":1,"mat":"wood_light"},{"x":4,"z":2,"mat":"wood_light"},{"x":4,"z":3,"mat":"wood_light"},{"x":4,"z":4,"mat":"wood_light"},{"x":4,"z":5,"mat":"wood_light"},{"x":5,"z":0,"mat":"wood_light"},{"x":5,"z":1,"mat":"wood_light"},{"x":5,"z":2,"mat":"wood_light"},{"x":5,"z":3,"mat":"wood_light"},{"x":5,"z":4,"mat":"wood_light"},{"x":5,"z":5,"mat":"wood_light"},{"x":6,"z":0,"mat":"wood_light"},{"x":6,"z":1,"mat":"wood_light"},{"x":6,"z":2,"mat":"wood_light"},{"x":6,"z":3,"mat":"wood_light"},{"x":6,"z":4,"mat":"wood_light"},{"x":6,"z":5,"mat":"wood_light"},{"x":7,"z":0,"mat":"wood_light"},{"x":7,"z":1,"mat":"wood_light"},{"x":7,"z":2,"mat":"wood_light"},{"x":7,"z":3,"mat":"wood_light"},{"x":7,"z":4,"mat":"wood_light"},{"x":7,"z":5,"mat":"wood_light"}],"outdoor":[{"x":4,"z":6,"mat":"deck"},{"x":5,"z":6,"mat":"deck"},{"x":6,"z":6,"mat":"deck"},{"x":7,"z":6,"mat":"deck"},{"x":5,"z":7,"mat":"deck"},{"x":6,"z":7,"mat":"deck"}],"walls":[{"side":"N","i":0,"mat":"wp_cream"},{"side":"N","i":1,"mat":"wp_cream"},{"side":"N","i":2,"mat":"wp_cream"},{"side":"N","i":3,"mat":"wp_cream","slot":"window_big"},{"side":"N","i":4,"mat":"wp_cream"},{"side":"N","i":5,"mat":"wp_cream"},{"side":"N","i":6,"mat":"wp_cream"},{"side":"N","i":7,"mat":"wp_cream"},{"side":"S","i":0,"mat":"wp_cream"},{"side":"S","i":1,"mat":"wp_cream","slot":"window_big"},{"side":"S","i":2,"mat":"wp_cream"},{"side":"S","i":3,"mat":"wp_cream","slot":"window_big"},{"side":"S","i":4,"mat":"wp_cream"},{"side":"S","i":5,"mat":"wp_cream"},{"side":"S","i":6,"mat":"wp_cream","slot":"door_sky"},{"side":"S","i":7,"mat":"wp_cream"},{"side":"W","i":0,"mat":"wp_cream"},{"side":"W","i":1,"mat":"wp_cream"},{"side":"W","i":2,"mat":"wp_cream","slot":"window_big"},{"side":"W","i":3,"mat":"wp_cream"},{"side":"W","i":4,"mat":"wp_cream"},{"side":"W","i":5,"mat":"wp_cream"},{"side":"E","i":0,"mat":"wp_cream"},{"side":"E","i":1,"mat":"wp_cream"},{"side":"E","i":2,"mat":"wp_cream"},{"side":"E","i":3,"mat":"wp_cream"},{"side":"E","i":4,"mat":"wp_cream"},{"side":"E","i":5,"mat":"wp_cream"}],"items":[{"id":"partition_fence","size":"s3","color":"white","x":6,"z":1,"rot":3,"layer":"wall","edgeWall":true},{"id":"bed","size":"double","color":"mint","x":0,"z":0,"rot":0,"layer":"floor","edgeWall":false},{"id":"sofa","size":"double","color":"mint","x":0,"z":3,"rot":0,"layer":"floor","edgeWall":false},{"id":"table","size":"round","color":"woodL","x":0,"z":4,"rot":0,"layer":"floor","edgeWall":false},{"id":"tv","size":"std","color":null,"x":0,"z":5,"rot":2,"layer":"floor","edgeWall":false},{"id":"partition","size":"s3","color":"white","x":4,"z":0,"rot":3,"layer":"wall","edgeWall":true},{"id":"partition","size":"s1","color":"white","x":4,"z":3,"rot":3,"layer":"wall","edgeWall":true},{"id":"partition","size":"s1","color":"white","x":4,"z":5,"rot":3,"layer":"wall","edgeWall":true},{"id":"partition_door","size":"s1","color":"mint","x":4,"z":4,"rot":3,"layer":"wall","edgeWall":true},{"id":"partition_door","size":"s1","color":"white","x":6,"z":0,"rot":3,"layer":"wall","edgeWall":true},{"id":"partition","size":"s2","color":"white","x":6,"z":1,"rot":0,"layer":"wall","edgeWall":true},{"id":"vanity","size":"wide","color":"white","x":3,"z":0,"rot":1,"layer":"floor","edgeWall":false},{"id":"flower","size":"std","color":"pink","x":3,"z":5,"rot":1,"layer":"floor","edgeWall":false},{"id":"rug","size":"l","color":"mint","x":1,"z":0,"rot":2,"layer":"rug","edgeWall":false},{"id":"rug","size":"l","color":"yellow","x":0,"z":3,"rot":3,"layer":"rug","edgeWall":false},{"id":"side_table","size":"std","color":"white","x":3,"z":2,"rot":3,"layer":"floor","edgeWall":false},{"id":"desk","size":"study","color":"woodL","x":4,"z":5,"rot":0,"layer":"floor","edgeWall":false},{"id":"toilet","size":"std","color":"white","x":7,"z":0,"rot":1,"layer":"floor","edgeWall":false},{"id":"washbasin","size":"std","color":"white","x":4,"z":0,"rot":3,"layer":"floor","edgeWall":false}],"wallItems":[{"id":"wallshelf","color":"woodL","l":1,"side":"W","i":1},{"id":"wallshelf","color":"woodL","l":1,"target":"edge","orient":"V","x":4,"z":5,"face":-1},{"id":"wallshelf","color":"woodL","l":1,"side":"N","i":6},{"id":"poster","color":"pink","l":1,"target":"edge","orient":"V","x":4,"z":2,"face":1},{"id":"poster","color":"lavender","l":1,"target":"edge","orient":"V","x":4,"z":1,"face":1},{"id":"poster","color":"mint","l":1,"side":"W","i":0},{"id":"clock","color":"white","l":1,"target":"edge","orient":"V","x":4,"z":1,"face":-1},{"id":"wall_towel","color":"white","l":1,"target":"edge","orient":"H","x":6,"z":1,"face":-1}]}],"holes":[{"x":6,"z":1},{"x":6,"z":2},{"x":6,"z":3},{"x":7,"z":1},{"x":7,"z":2},{"x":7,"z":3}],"palette":{"pink":"#ffb6d9","mint":"#b3f0dc","lavender":"#d9b8ff","sky":"#9fd9ff","yellow":"#ffd66e","coral":"#f2a48c","woodL":"#e6c391","woodD":"#c89a6e","white":"#ffffff"},"nature":{"preset":"soft_forest","seed":553580}};
 
-            <div class="control-group">
-                <label>ゆれ具合</label>
-                <input type="range" id="wobbleSlider" min="0" max="20" value="2">
-            </div>
 
-            <div class="control-group">
-                <label>ゆれ速度</label>
-                <input type="range" id="wobbleSpeedSlider" min="0" max="20" value="5">
-            </div>
+function outdoorItemDefs(){ return ITEMS.filter(i=>i.outdoorOnly); }
+function isOutdoorItemId(id){ return outdoorItemDefs().some(i=>i.id===id); }
 
-            <div class="spacer"></div>
+function defSizes(def){ return def.sizes || [{sid:"std", name:"", w:def.w||1, d:def.d||1}]; }
+function defColors(def){ return def.colors || []; }
+function sizeOf(def, sid){ return defSizes(def).find(s=>s.sid===sid) || defSizes(def)[0]; }
+function csOf(cid){ return CSET[cid] || CSET.white; }
 
-            <div class="control-group">
-                <button id="backToStartBtn" class="secondary-btn">🏠 ホームに戻る</button>
-            </div>
-        </div>
+/* ---------- 部屋の状態（2フロア） ---------- */
+const GRID = { cell:1.0, wallHeight:2.5 };
+const SLAB = 0.12;                        // 2F床スラブの厚み
+const LV_H = GRID.wallHeight + SLAB;      // 1フロアぶんの高さ
+const LEVELS = 2;
+const SIZE_LIMIT = { wMin:6, wMax:12, dMin:6, dMax:10 };
+let ROOM = { w:8, d:6 };
+let activeLevel = 0;
 
-        <!-- Center: Canvas -->
-        <div class="canvas-area">
-            <!-- Left Sidebar Toggle -->
-            <button id="leftSidebarToggle" class="sidebar-toggle left" title="左サイドバーを開閉">◀</button>
+let floorMapL = [{},{}];                  // [lvl]["x,z"] -> floorId
+let outdoorMapL = [{},{}];                // [lvl]["x,z"] -> outdoor tile id（部屋の外側のベランダ/庭床）
+let wallMapL  = [{},{}];                  // [lvl]["side:i"] -> {mat, slot}
+const items = [];                         // {id,size,color,x,z,rot,level,group,cells[],noOcc}
+const wallItems = [];                     // {id,color,side,i,level,group}
+const occ = new Map();                    // "lvl|x,z" -> item
+const edgeOcc = new Map();                // しきりかべ用: "lvl|H|x,z" / "lvl|V|x,z" -> item
+const wallItemMap = new Map();            // "lvl|side:i" -> wallItem
+const holeSet = new Set();                // 2Fの吹き抜け "x,z"
+const OUTDOOR_EXT = 3;                    // 部屋の外側に拡張できるマス数
+const undoStack = [];
 
-            <!-- Right Sidebar Toggle -->
-            <button id="rightSidebarToggle" class="sidebar-toggle right" title="右サイドバーを開閉">▶</button>
+const fk = (l,x,z)=>`${l}|${x},${z}`;
+const wk = (l,side,i)=>`${l}|${side}:${i}`;
+const edgeBaseKey = (l,orient,x,z)=>`${l}|${orient}|${x},${z}`;
+const edgeWk = (l,orient,x,z,face)=>`edge:${edgeBaseKey(l,orient,x,z)}:${face}`;
+function wallItemKey(wi){
+  return wi.target==="edge" ? edgeWk(wi.level, wi.orient, wi.x, wi.z, wi.face) : wk(wi.level, wi.side, wi.i);
+}
+const sideLen = side => (side==="N"||side==="S") ? ROOM.w : ROOM.d;
+const lvlY = l => l * LV_H;
 
-            <div class="canvas-wrapper">
-                <canvas id="drawingCanvas"></canvas>
-            </div>
+/* ---------- Three.js 基本 ---------- */
+const canvas   = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.18;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-            <!-- Zoom Controls (moved to bottom) -->
-            <div class="zoom-controls">
-                <button id="zoomOutBtn" class="zoom-btn" title="縮小">−</button>
-                <input type="range" id="zoomSlider" min="25" max="200" value="100" step="5">
-                <span id="zoomPercent">100%</span>
-                <button id="zoomInBtn" class="zoom-btn" title="拡大">+</button>
-                <button id="zoomResetBtn" class="zoom-btn" title="リセット">⊙</button>
-                <div class="divider-v" style="width: 1px; height: 24px; background: #ddd; margin: 0 4px;"></div>
-                <button id="panBtn" class="zoom-btn" title="手のひらツール (Space)">✋</button>
-            </div>
+const scene = new THREE.Scene();
+const DAY   = { sky:new THREE.Color(0x453f78), hemi:0.82, sun:0.85 };
+const NIGHT = { sky:new THREE.Color(0x232045), hemi:0.48, sun:0.25 };
+let isDay = true, dayBlend = 1;
+scene.background = DAY.sky.clone();
 
-            <!-- Floating Controls -->
-            <div class="canvas-controls">
-                <button id="undoBtn" class="canvas-btn" title="元に戻す">↩️</button>
-                <button id="redoBtn" class="canvas-btn" title="やり直す">↪️</button>
-                <div class="divider-v"></div>
-                <button id="clearBtn" class="canvas-btn danger" title="すべて消去">🗑️</button>
-                <button id="exportBtn" class="action-btn">💾 書き出し</button>
-            </div>
-        </div>
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
+const hemi = new THREE.HemisphereLight(0xfff0db, 0xb8916c, 0.82);
+scene.add(hemi);
+const amb = new THREE.AmbientLight(0xffdcb8, 0.16);
+scene.add(amb);
+const sun = new THREE.DirectionalLight(0xffd9a0, 0.85);
+sun.position.set(18, 22, 7);
+sun.shadow.bias = -0.0004;
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+const SC = 16;
+sun.shadow.camera.left=-SC; sun.shadow.camera.right=SC;
+sun.shadow.camera.top=SC;  sun.shadow.camera.bottom=-SC;
+sun.shadow.camera.far = 90;
+scene.add(sun);
 
-        <!-- Right Sidebar: Layers & Color Palette -->
-        <div class="sidebar right-sidebar">
-            <div class="control-group vertical">
-                <label>レイヤー</label>
-                <div id="layerPanel" class="layer-panel">
-                    <!-- Layers generated by JS -->
-                </div>
-            </div>
+const clouds = [];
+(function(){
+  const mat = new THREE.MeshBasicMaterial({ color:0x6e66a8, transparent:true, opacity:0.5 });
+  for(let i=0;i<5;i++){
+    const g = new THREE.Group();
+    const n = 3+Math.floor(Math.random()*3);
+    for(let j=0;j<n;j++){
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1.4+Math.random()*1.8, 10, 8), mat);
+      m.position.set(j*1.8-(n-1), Math.random()*0.5, Math.random()*1.2-0.6);
+      m.scale.y = 0.6;
+      g.add(m);
+    }
+    g.position.set(Math.random()*80-40, 16+Math.random()*9, Math.random()*80-40);
+    g.userData.speed = 0.3+Math.random()*0.4;
+    scene.add(g); clouds.push(g);
+  }
+})();
+let pedestal = null;
+function rebuildPedestal(){
+  if(pedestal) scene.remove(pedestal);
+  pedestal = new THREE.Group();
+  const b1 = new THREE.Mesh(new THREE.BoxGeometry(ROOM.w+OUTDOOR_EXT*2+1.8, 0.6, ROOM.d+OUTDOOR_EXT*2+1.8),
+    new THREE.MeshLambertMaterial({ color:0xe9c79a }));
+  b1.position.set(ROOM.w/2, -0.42, ROOM.d/2); b1.receiveShadow = true;
+  const b2 = new THREE.Mesh(new THREE.BoxGeometry(ROOM.w+OUTDOOR_EXT*2+2.8, 0.4, ROOM.d+OUTDOOR_EXT*2+2.8),
+    new THREE.MeshLambertMaterial({ color:0xd9b083 }));
+  b2.position.set(ROOM.w/2, -0.85, ROOM.d/2); b2.receiveShadow = true;
+  pedestal.add(b1, b2);
+  // あったかグロー（床下のスポットライトふう）
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const ctx = c.getContext("2d");
+  const grad = ctx.createRadialGradient(128,128,12, 128,128,128);
+  grad.addColorStop(0, "rgba(255,206,150,0.5)");
+  grad.addColorStop(0.55, "rgba(255,180,130,0.18)");
+  grad.addColorStop(1, "rgba(255,180,130,0)");
+  ctx.fillStyle = grad; ctx.fillRect(0,0,256,256);
+  const glowTex = new THREE.CanvasTexture(c);
+  const glow = new THREE.Mesh(
+    new THREE.PlaneGeometry((ROOM.w+OUTDOOR_EXT*2)*3.2, (ROOM.d+OUTDOOR_EXT*2)*3.2),
+    new THREE.MeshBasicMaterial({ map:glowTex, transparent:true, depthWrite:false })
+  );
+  glow.rotation.x = -Math.PI/2;
+  glow.position.set(ROOM.w/2, -1.06, ROOM.d/2);
+  pedestal.add(glow);
+  scene.add(pedestal);
+}
 
-            <div class="control-group vertical">
-                <label>パレット</label>
-                <div id="colorPalette" class="color-palette vertical">
-                    <!-- Colors generated by JS -->
-                </div>
-            </div>
-        </div>
-    </div>
+/* レベルごとのルートグループ（表示切替用） */
+const levelRoots = [new THREE.Group(), new THREE.Group()];
+levelRoots.forEach(r=>scene.add(r));
 
-    <!-- Custom Confirm Dialog -->
-    <div id="confirmDialog" class="confirm-dialog">
-        <div class="confirm-content">
-            <p id="confirmMessage">ホームに戻りますか？<br>（描いた絵は消えてしまいます）</p>
-            <div class="confirm-buttons">
-                <button id="confirmOk" class="confirm-btn ok-btn">OK</button>
-                <button id="confirmCancel" class="confirm-btn cancel-btn">キャンセル</button>
-            </div>
-        </div>
-    </div>
+/* ---------- メッシュヘルパー ---------- */
+function L(color){ return new THREE.MeshLambertMaterial({ color }); }
+function box(w,h,d,color,x=0,y=0,z=0){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), L(color));
+  m.position.set(x,y,z); m.castShadow = m.receiveShadow = true; return m;
+}
+function cyl(rt,rb,h,color,x=0,y=0,z=0,seg=12){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg), L(color));
+  m.position.set(x,y,z); m.castShadow = m.receiveShadow = true; return m;
+}
+function sph(r,color,x=0,y=0,z=0){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r,14,12), L(color));
+  m.position.set(x,y,z); m.castShadow = m.receiveShadow = true; return m;
+}
+function shadowOn(o){ o.traverse(m=>{ if(m.isMesh){ m.castShadow=m.receiveShadow=true; } }); }
 
-    <script src="script.js"></script>
+/* ---------- NatureSystem（家の外側だけ自然な坂・木・岩・草で囲む） ---------- */
+const NATURE_PRESETS = [
+  { id:"soft_forest", name:"やわらか森", ground:0x9bdc85, ground2:0x77c86f, hill:0.78, treeDensity:0.36, rockDensity:0.10, grassDensity:0.58, treeA:0x6fbf68, treeB:0x8fdc7d, trunk:0x9a6a46 },
+  { id:"spring_hill", name:"春の丘", ground:0xaee68f, ground2:0xf3b6d4, hill:0.62, treeDensity:0.24, rockDensity:0.07, grassDensity:0.66, treeA:0x89d982, treeB:0xffb6d9, trunk:0xa77952 },
+  { id:"tiny_mountain", name:"小山の森", ground:0x88c978, ground2:0xb8b0a4, hill:1.12, treeDensity:0.42, rockDensity:0.18, grassDensity:0.42, treeA:0x5fa95d, treeB:0x78bf71, trunk:0x865d3d },
+  { id:"none", name:"なし", ground:0x9bdc85, ground2:0x77c86f, hill:0, treeDensity:0, rockDensity:0, grassDensity:0, treeA:0x6fbf68, treeB:0x8fdc7d, trunk:0x9a6a46 }
+];
+let natureSettings = { preset:"soft_forest", seed: 42831 };
+let natureRoot = null;
+const natureClockItems = [];
+
+function naturePreset(){ return NATURE_PRESETS.find(p=>p.id===natureSettings.preset) || NATURE_PRESETS[0]; }
+function rand01(seed){
+  let t = seed >>> 0;
+  return function(){
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashNoise(x,z,seed){
+  const n = Math.sin(x*127.1 + z*311.7 + seed*0.017) * 43758.5453123;
+  return n - Math.floor(n);
+}
+function smoothstep(edge0, edge1, x){
+  const t = Math.max(0, Math.min(1, (x-edge0)/(edge1-edge0)));
+  return t*t*(3-2*t);
+}
+function distToRoomRect(x,z){
+  const dx = x < 0 ? -x : (x > ROOM.w ? x-ROOM.w : 0);
+  const dz = z < 0 ? -z : (z > ROOM.d ? z-ROOM.d : 0);
+  return Math.hypot(dx,dz);
+}
+function natureHeightAt(x,z,preset=naturePreset()){
+  const dist = distToRoomRect(x,z);
+  const flat = OUTDOOR_EXT + 0.55;
+  const far = OUTDOOR_EXT + 8.5;
+  const slope = smoothstep(flat, far, dist);
+  const wave1 = (hashNoise(Math.floor(x*0.55), Math.floor(z*0.55), natureSettings.seed)-0.5) * 0.32;
+  const wave2 = Math.sin((x+natureSettings.seed*0.01)*0.48) * Math.cos((z-natureSettings.seed*0.013)*0.36) * 0.18;
+  return -0.18 + slope * (preset.hill + wave1 + wave2);
+}
+function makeNatureMat(c1, c2){
+  const mat = new THREE.MeshLambertMaterial({ color:c1, vertexColors:true, side:THREE.DoubleSide });
+  mat.userData.altColor = c2;
+  return mat;
+}
+function buildNatureTerrain(preset){
+  const radius = 12;
+  const step = 1.0;
+  const minX = -radius, maxX = ROOM.w + radius;
+  const minZ = -radius, maxZ = ROOM.d + radius;
+  const nx = Math.round((maxX-minX)/step) + 1;
+  const nz = Math.round((maxZ-minZ)/step) + 1;
+  const verts = [];
+  const uvs = [];
+  const colors = [];
+  const cA = new THREE.Color(preset.ground);
+  const cB = new THREE.Color(preset.ground2);
+  for(let iz=0; iz<nz; iz++){
+    const z = minZ + iz*step;
+    for(let ix=0; ix<nx; ix++){
+      const x = minX + ix*step;
+      const y = natureHeightAt(x,z,preset);
+      verts.push(x,y,z);
+      uvs.push(ix/(nx-1), iz/(nz-1));
+      const patch = smoothstep(0.34, 0.82, hashNoise(Math.floor(x*0.75), Math.floor(z*0.75), natureSettings.seed+91));
+      const farMix = smoothstep(OUTDOOR_EXT+2.0, OUTDOOR_EXT+9.0, distToRoomRect(x,z)) * 0.25;
+      const col = cA.clone().lerp(cB, Math.min(0.55, patch*0.28 + farMix));
+      colors.push(col.r, col.g, col.b);
+    }
+  }
+  const idx = [];
+  for(let iz=0; iz<nz-1; iz++) for(let ix=0; ix<nx-1; ix++){
+    const a = iz*nx+ix, b=a+1, c=a+nx, d=c+1;
+    idx.push(a,c,b, b,c,d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs,2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, makeNatureMat(preset.ground, preset.ground2));
+  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.userData.nature = true;
+  return mesh;
+}
+function buildLowpolyTree(preset, r, scale=1){
+  const g = new THREE.Group();
+  const trunkH = (0.55 + r()*0.35) * scale;
+  const trunk = cyl(0.08*scale,0.11*scale,trunkH,preset.trunk,0,trunkH/2,0,6);
+  g.add(trunk);
+  const crownCount = r() < 0.35 ? 3 : 2;
+  for(let i=0;i<crownCount;i++){
+    const h = (0.62 + i*0.38) * scale;
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry((0.48-i*0.06)*scale, (0.9-i*0.08)*scale, 7),
+      L(i%2 ? preset.treeB : preset.treeA)
+    );
+    cone.position.set((r()-0.5)*0.05*scale, trunkH + h*0.56, (r()-0.5)*0.05*scale);
+    cone.rotation.y = r()*Math.PI;
+    cone.castShadow = cone.receiveShadow = true;
+    g.add(cone);
+  }
+  return g;
+}
+function buildNatureRock(r, scale=1){
+  const g = new THREE.Group();
+  const c = r()<0.5 ? 0xb8afa2 : 0xcfc8bc;
+  const a = sph(0.25*scale,c,0,0.16*scale,0); a.scale.set(1.35,0.62,0.95); g.add(a);
+  if(r()<0.55){ const b=sph(0.16*scale,0xafa79d,0.22*scale,0.12*scale,0.08*scale); b.scale.set(1.1,0.58,0.9); g.add(b); }
+  return g;
+}
+function buildGrassTuft(preset, r, scale=1){
+  const g = new THREE.Group();
+  const n = 3 + Math.floor(r()*3);
+  for(let i=0;i<n;i++){
+    const blade = box(0.035*scale, (0.22+r()*0.22)*scale, 0.035*scale, r()<0.25?preset.ground2:preset.treeA, 0, 0.12*scale, 0);
+    blade.position.x = (r()-0.5)*0.32*scale;
+    blade.position.z = (r()-0.5)*0.32*scale;
+    blade.rotation.z = (r()-0.5)*0.75;
+    blade.rotation.x = (r()-0.5)*0.55;
+    g.add(blade);
+  }
+  return g;
+}
+function addNatureProp(root, obj, x, z, y, r, scale=1){
+  obj.position.set(x,y,z);
+  obj.rotation.y = r()*Math.PI*2;
+  obj.scale.setScalar(scale);
+  obj.userData.nature = true;
+  root.add(obj);
+}
+function disableNaturePicking(root){
+  root.traverse(o=>{
+    if(o.isMesh){
+      o.raycast = function(){};
+      if(o.userData.nature){ o.castShadow = true; o.receiveShadow = true; }
+    }
+  });
+}
+function rebuildNature(){
+  if(natureRoot){ scene.remove(natureRoot); natureRoot = null; }
+  natureClockItems.length = 0;
+  const preset = naturePreset();
+  updateNatureLabel();
+  if(preset.id === "none") return;
+  const r = rand01(natureSettings.seed);
+  const root = new THREE.Group();
+  root.name = "NatureSystem";
+  const terrain = buildNatureTerrain(preset);
+  root.add(terrain);
+
+  const radius = 11;
+  const spacing = 1.15;
+  for(let x=-radius; x<=ROOM.w+radius; x+=spacing){
+    for(let z=-radius; z<=ROOM.d+radius; z+=spacing){
+      const jx = x + (r()-0.5)*0.8;
+      const jz = z + (r()-0.5)*0.8;
+      const dist = distToRoomRect(jx,jz);
+      if(dist < OUTDOOR_EXT + 1.05 || dist > radius - 0.4) continue;
+      const isSouth = jz > ROOM.d;
+      const densityMul = isSouth && dist < OUTDOOR_EXT + 4.5 ? 0.38 : 1.0;
+      const y = natureHeightAt(jx,jz,preset) + 0.02;
+      const roll = r();
+      if(roll < preset.treeDensity * 0.22 * densityMul){
+        const sc = (0.8 + r()*0.65) * (isSouth ? 0.78 : 1.0);
+        const tree = buildLowpolyTree(preset, r, sc);
+        addNatureProp(root, tree, jx, jz, y, r, 1);
+        if(r()<0.35) natureClockItems.push(tree);
+      }else if(roll < preset.treeDensity * 0.22 * densityMul + preset.rockDensity * 0.18){
+        addNatureProp(root, buildNatureRock(r, 0.8+r()*0.8), jx, jz, y, r, 1);
+      }else if(roll < preset.treeDensity * 0.22 * densityMul + preset.rockDensity * 0.18 + preset.grassDensity * 0.24){
+        addNatureProp(root, buildGrassTuft(preset, r, 0.8+r()*0.8), jx, jz, y, r, 1);
+      }
+    }
+  }
+
+  // 家の四角い外周を柔らかく隠す「なじませ帯」。小さな草と石だけを薄く置く。
+  for(let i=0;i<70;i++){
+    const side = Math.floor(r()*4);
+    let x,z;
+    if(side===0){ x = r()*ROOM.w; z = -OUTDOOR_EXT - r()*1.2; }
+    else if(side===1){ x = r()*ROOM.w; z = ROOM.d + OUTDOOR_EXT + r()*1.2; }
+    else if(side===2){ x = -OUTDOOR_EXT - r()*1.2; z = r()*ROOM.d; }
+    else { x = ROOM.w + OUTDOOR_EXT + r()*1.2; z = r()*ROOM.d; }
+    x += (r()-0.5)*0.7; z += (r()-0.5)*0.7;
+    const y = natureHeightAt(x,z,preset) + 0.02;
+    const obj = r()<0.82 ? buildGrassTuft(preset, r, 0.55+r()*0.55) : buildNatureRock(r, 0.45+r()*0.35);
+    addNatureProp(root, obj, x, z, y, r, 1);
+  }
+
+  // 遠景の木立。低密度の大きめシルエットで「囲まれてる感」を出す。
+  for(let i=0;i<34;i++){
+    const ang = r()*Math.PI*2;
+    const rr = 10.0 + r()*2.3;
+    const x = ROOM.w/2 + Math.cos(ang)*(ROOM.w/2+rr);
+    const z = ROOM.d/2 + Math.sin(ang)*(ROOM.d/2+rr);
+    if(distToRoomRect(x,z) < OUTDOOR_EXT+5.0) continue;
+    const y = natureHeightAt(x,z,preset) + 0.02;
+    const tree = buildLowpolyTree(preset, r, 1.25+r()*0.75);
+    addNatureProp(root, tree, x, z, y, r, 1);
+  }
+
+  disableNaturePicking(root);
+  natureRoot = root;
+  scene.add(natureRoot);
+}
+function updateNatureLabel(){
+  const el = document.getElementById("nature-label");
+  if(el) el.textContent = "外景：" + naturePreset().name;
+}
+function cycleNaturePreset(){
+  const i = NATURE_PRESETS.findIndex(p=>p.id===natureSettings.preset);
+  const next = NATURE_PRESETS[(i+1) % NATURE_PRESETS.length];
+  natureSettings.preset = next.id;
+  rebuildNature();
+  toast("外景：" + next.name + " 🌿");
+  sfx("kira");
+}
+function rerollNature(){
+  natureSettings.seed = Math.floor(Math.random()*999999);
+  rebuildNature();
+  toast("外景を再生成したよ 🎲");
+  sfx("kira");
+}
+function tickNature(t){
+  for(let i=0;i<natureClockItems.length;i++){
+    const g = natureClockItems[i];
+    const sway = Math.sin(t*0.85 + i*1.73) * 0.025;
+    g.rotation.z = sway;
+  }
+}
+
+/* ---------- 床 ---------- */
+const floorGroups = [null, null];
+const floorTilesL = [new Map(), new Map()];
+function floorColorOf(id, x, z){
+  const def = FLOORS.find(f=>f.id===id) || FLOORS[0];
+  if(def.c2 !== undefined && (x+z)%2===1) return def.c2;
+  return def.c;
+}
+function rebuildFloor(l){
+  if(floorGroups[l]) levelRoots[l].remove(floorGroups[l]);
+  const G = new THREE.Group();
+  floorTilesL[l].clear();
+  const y0 = lvlY(l);
+  for(let x=0;x<ROOM.w;x++) for(let z=0;z<ROOM.d;z++){
+    if(l===1 && holeSet.has(`${x},${z}`)) continue;       // 吹き抜け
+    const id = floorMapL[l][`${x},${z}`] || "wood_light";
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1,SLAB,1), L(floorColorOf(id,x,z)));
+    m.position.set(x+0.5, y0 - SLAB/2 + (l===0?SLAB/2-0.06:0), z+0.5);
+    if(l===0) m.position.y = -0.06;
+    m.receiveShadow = true; m.castShadow = l===1;
+    m.userData.cell = { x, z, level:l };
+    G.add(m);
+    floorTilesL[l].set(`${x},${z}`, m);
+  }
+  floorGroups[l] = G;
+  levelRoots[l].add(G);
+}
+function paintFloor(l,x,z,id,silent){
+  const k = `${x},${z}`;
+  if(l===1 && holeSet.has(k)){ toast("吹き抜けにはぬれないよ"); return; }
+  const prev = floorMapL[l][k] || "wood_light";
+  if(prev===id) return;
+  floorMapL[l][k] = id;
+  const m = floorTilesL[l].get(k);
+  if(m) m.material.color.setHex(floorColorOf(id,x,z));
+  if(!silent){ sfx("tick"); undoStack.push({a:"floor",l,x,z,prev}); sparkleAt(new THREE.Vector3(x+0.5, lvlY(l)+0.1, z+0.5), 0xffe27d, 4); }
+}
+
+/* ---------- ベランダ / 外床 ---------- */
+const outdoorGroups = [null, null];
+const outdoorGuideGroups = [null, null];
+const outdoorTilesL = [new Map(), new Map()];
+
+function okKey(x,z){ return `${x},${z}`; }
+function isInsideRoomCell(x,z){ return x>=0 && z>=0 && x<ROOM.w && z<ROOM.d; }
+function outdoorInBand(x,z){
+  return !isInsideRoomCell(x,z) && x>=-OUTDOOR_EXT && z>=-OUTDOOR_EXT && x<ROOM.w+OUTDOOR_EXT && z<ROOM.d+OUTDOOR_EXT;
+}
+function hasOutdoorTile(l,x,z){ return !!outdoorMapL[l][okKey(x,z)]; }
+function isValidFloorCell(l,x,z){
+  if(isInsideRoomCell(x,z)) return !(l===1 && holeSet.has(okKey(x,z)));
+  return hasOutdoorTile(l,x,z);
+}
+function outdoorColorOf(id,x,z){
+  const def = OUTDOOR_TILES.find(t=>t.id===id) || OUTDOOR_TILES[0];
+  if(def.c2 !== undefined && (Math.abs(x)+Math.abs(z))%2===1) return def.c2;
+  return def.c ?? 0xd9a66d;
+}
+function outdoorBandCells(){
+  const arr = [];
+  for(let x=-OUTDOOR_EXT; x<ROOM.w+OUTDOOR_EXT; x++) for(let z=-OUTDOOR_EXT; z<ROOM.d+OUTDOOR_EXT; z++){
+    if(outdoorInBand(x,z)) arr.push([x,z]);
+  }
+  return arr;
+}
+function outdoorCellHasFurniture(l,x,z){
+  const key = fk(l,x,z);
+  return items.some(it=>it.level===l && it.cells && it.cells.includes(key));
+}
+function addOutdoorRailings(G,l){
+  const railColor = 0xffffff;
+  const postColor = 0xfff8f0;
+  const y0 = lvlY(l);
+  const dirs = [
+    {dx:0,dz:-1, kind:"H", bx:(x,z)=>[x+0.5,z]},
+    {dx:0,dz: 1, kind:"H", bx:(x,z)=>[x+0.5,z+1]},
+    {dx:-1,dz:0, kind:"V", bx:(x,z)=>[x,z+0.5]},
+    {dx: 1,dz:0, kind:"V", bx:(x,z)=>[x+1,z+0.5]},
+  ];
+  for(const k of Object.keys(outdoorMapL[l])){
+    const [x,z] = k.split(",").map(Number);
+    if(!outdoorInBand(x,z)) continue;
+    for(const d of dirs){
+      const nx=x+d.dx, nz=z+d.dz;
+      if(hasOutdoorTile(l,nx,nz) || isInsideRoomCell(nx,nz)) continue;
+      const [bx,bz] = d.bx(x,z);
+      if(d.kind==="H"){
+        G.add(box(0.86,0.07,0.07, railColor, bx, y0+0.72, bz));
+        G.add(box(0.86,0.06,0.06, railColor, bx, y0+0.43, bz));
+        G.add(box(0.07,0.72,0.07, postColor, bx-0.43, y0+0.36, bz));
+        G.add(box(0.07,0.72,0.07, postColor, bx+0.43, y0+0.36, bz));
+      }else{
+        G.add(box(0.07,0.07,0.86, railColor, bx, y0+0.72, bz));
+        G.add(box(0.06,0.06,0.86, railColor, bx, y0+0.43, bz));
+        G.add(box(0.07,0.72,0.07, postColor, bx, y0+0.36, bz-0.43));
+        G.add(box(0.07,0.72,0.07, postColor, bx, y0+0.36, bz+0.43));
+      }
+    }
+  }
+}
+function setOutdoorGuidesVisible(){
+  const on = (typeof mode !== "undefined" && mode === "bal");
+  for(const g of outdoorGuideGroups) if(g) g.visible = on;
+}
+function rebuildOutdoor(l){
+  if(outdoorGroups[l]) levelRoots[l].remove(outdoorGroups[l]);
+  if(outdoorGuideGroups[l]) levelRoots[l].remove(outdoorGuideGroups[l]);
+  const G = new THREE.Group();
+  const GG = new THREE.Group();
+  outdoorTilesL[l].clear();
+  const y = (l===0) ? -0.06 : lvlY(l) - SLAB/2;
+  const guideMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.12, depthWrite:false });
+  for(const [x,z] of outdoorBandCells()){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.035, 0.96), guideMat);
+    m.position.set(x+0.5, y+0.025, z+0.5);
+    m.userData.cell = { x, z, level:l, outdoor:true, guide:true };
+    GG.add(m);
+  }
+  for(const [k,id] of Object.entries(outdoorMapL[l])){
+    const [x,z] = k.split(",").map(Number);
+    if(!outdoorInBand(x,z) || id==="_clear") continue;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1,SLAB,1), L(outdoorColorOf(id,x,z)));
+    m.position.set(x+0.5, y, z+0.5);
+    m.receiveShadow = true; m.castShadow = l===1;
+    m.userData.cell = { x, z, level:l, outdoor:true };
+    G.add(m);
+    outdoorTilesL[l].set(k, m);
+  }
+  addOutdoorRailings(G,l);
+  outdoorGroups[l] = G;
+  outdoorGuideGroups[l] = GG;
+  levelRoots[l].add(G);
+  levelRoots[l].add(GG);
+  setOutdoorGuidesVisible();
+}
+function setOutdoorTile(l,x,z,id,silent){
+  if(!outdoorInBand(x,z)) return false;
+  const k = okKey(x,z);
+  const prev = outdoorMapL[l][k] || null;
+  const next = id==="_clear" ? null : id;
+  if(prev===next) return false;
+  if(!next && outdoorCellHasFurniture(l,x,z)){
+    if(!silent){ toast("家具がある外床は消せないよ 🧹"); sfx("nope"); }
+    return false;
+  }
+  if(next) outdoorMapL[l][k] = next; else delete outdoorMapL[l][k];
+  rebuildOutdoor(l);
+  if(!silent){
+    undoStack.push({ a:"outdoor", l, x, z, prev, next });
+    sparkleAt(new THREE.Vector3(x+0.5, lvlY(l)+0.12, z+0.5), next?0x8fdc7d:0xcccccc, 6);
+    sfx(next?"kira":"poof");
+  }
+  return true;
+}
+function addDefaultBalcony(){
+  // 1F南側に小さなウッドデッキ、2F南側に小さなベランダを用意
+  for(const l of [0,1]){
+    for(let x=4; x<8; x++) outdoorMapL[l][okKey(x, ROOM.d)] = "deck";
+    for(let x=5; x<7; x++) outdoorMapL[l][okKey(x, ROOM.d+1)] = "deck";
+    rebuildOutdoor(l);
+  }
+}
+
+/* ---------- 壁（エッジベース×2フロア） ---------- */
+const wallGroupsL = [{N:null,S:null,W:null,E:null},{N:null,S:null,W:null,E:null}];
+const sideFade    = { N:1, S:1, W:1, E:1 };
+const TH = 0.16, H = GRID.wallHeight;
+
+function sideTransform(side, i){
+  if(side==="N") return { pos:[i+0.5, 0, -TH/2],       ry:0 };
+  if(side==="S") return { pos:[i+0.5, 0, ROOM.d+TH/2], ry:Math.PI };
+  if(side==="W") return { pos:[-TH/2, 0, i+0.5],       ry:Math.PI/2 };
+  return            { pos:[ROOM.w+TH/2, 0, i+0.5],     ry:-Math.PI/2 };
+}
+function buildPlainWall(wp, w=1){
+  const g = new THREE.Group();
+  const railY = 0.92;
+  g.add(box(w, H-railY, TH, wp.up, 0, (H+railY)/2, 0));
+  g.add(box(w, railY, TH, wp.low, 0, railY/2, 0));
+  g.add(box(w, 0.06, TH+0.04, 0xffffff, 0, railY, 0));
+  g.add(box(w, 0.12, TH+0.04, 0xffffff, 0, 0.06, 0));
+  return g;
+}
+function buildSlotWall(wp, slot){
+  const g = new THREE.Group();
+  const SP = slot.span || 1;
+  if(slot.kind==="door"){
+    const dw = SP===2 ? 1.64 : 0.82, dh = 2.0;
+    g.add(box(SP, H-dh, TH, wp.up, 0, (H+dh)/2, 0));
+    const sideW = (SP-dw)/2;
+    g.add(box(sideW, dh, TH, wp.up, -(dw/2+sideW/2), dh/2, 0));
+    g.add(box(sideW, dh, TH, wp.up,  (dw/2+sideW/2), dh/2, 0));
+    g.add(box(dw+0.1, 0.08, TH+0.06, 0xffffff, 0, dh+0.02, 0));
+    g.add(box(0.07, dh, TH+0.06, 0xffffff, -dw/2, dh/2, 0));
+    g.add(box(0.07, dh, TH+0.06, 0xffffff,  dw/2, dh/2, 0));
+    if(SP===2){
+      // 両びらき：2枚の扉＋中央の召し合わせ
+      g.add(box(0.06, dh, TH+0.04, 0xffffff, 0, dh/2, 0));
+      for(const sx of [-1,1]){
+        g.add(box(dw/2-0.1, dh-0.12, 0.08, slot.accent, sx*dw/4, (dh-0.12)/2+0.03, 0));
+        g.add(box(0.05, 0.22, 0.035, 0xffd66e, sx*0.12, dh/2-0.05, 0.075));
+      }
+    }else{
+      g.add(box(dw-0.1, dh-0.12, 0.08, slot.accent, 0, (dh-0.12)/2+0.03, 0));
+      g.add(box(0.05, 0.22, 0.035, 0xffd66e, dw/2-0.18, dh/2-0.05, 0.075));
+    }
+  }else{
+    g.add(buildPlainWall(wp, SP));
+    let ww=0.78, wh=0.85, wy=1.5;
+    if(slot.id==="window_wide"){ ww=0.92; wh=0.6; wy=1.62; }
+    if(slot.id==="window_big"){ ww=1.7; wh=1.0; wy=1.45; }
+    if(slot.id==="window_round"){
+      const r = 0.36;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.05, 10, 24), L(0xffffff));
+      ring.position.set(0, 1.55, TH/2+0.03); g.add(ring);
+      const glass = new THREE.Mesh(new THREE.CircleGeometry(r, 24),
+        new THREE.MeshLambertMaterial({ color:0xcdeeff, transparent:true, opacity:0.55 }));
+      glass.position.set(0, 1.55, TH/2+0.02); g.add(glass);
+      g.add(box(0.05, r*2-0.06, 0.04, 0xffffff, 0, 1.55, TH/2+0.04));
+      g.add(box(r*2-0.06, 0.05, 0.04, 0xffffff, 0, 1.55, TH/2+0.04));
+      shadowOn(g); return g;
+    }
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, 0.04),
+      new THREE.MeshLambertMaterial({ color:0xcdeeff, transparent:true, opacity:0.55 }));
+    glass.position.set(0, wy, TH/2+0.01); g.add(glass);
+    g.add(box(ww+0.1, 0.07, 0.08, 0xffffff, 0, wy+wh/2, TH/2+0.03));
+    g.add(box(ww+0.1, 0.07, 0.08, 0xffffff, 0, wy-wh/2, TH/2+0.03));
+    g.add(box(0.07, wh+0.07, 0.08, 0xffffff, -ww/2, wy, TH/2+0.03));
+    g.add(box(0.07, wh+0.07, 0.08, 0xffffff,  ww/2, wy, TH/2+0.03));
+    g.add(box(0.05, wh, 0.05, 0xffffff, 0, wy, TH/2+0.03));
+    if(slot.id==="window_wide" || slot.id==="window_big") g.add(box(ww, 0.05, 0.05, 0xffffff, 0, wy, TH/2+0.03));
+    if(slot.id==="window_big"){
+      g.add(box(0.05, wh, 0.05, 0xffffff, -ww/4, wy, TH/2+0.03));
+      g.add(box(0.05, wh, 0.05, 0xffffff,  ww/4, wy, TH/2+0.03));
+    }
+    g.add(box(ww*0.9, 0.1, 0.16, 0xffffff, 0, wy-wh/2-0.08, TH/2+0.06));
+    if(slot.id==="window_flower"){
+      g.add(box(ww*0.7, 0.12, 0.14, 0xc89a6e, 0, wy-wh/2-0.2, TH/2+0.1));
+      for(let j=0;j<3;j++) g.add(sph(0.06,[0xff9fce,0xffd66e,0xff8fa0][j], (j-1)*ww*0.25, wy-wh/2-0.1, TH/2+0.1));
+    }
+  }
+  shadowOn(g);
+  return g;
+}
+function rebuildWall(l, side){
+  if(wallGroupsL[l][side]) levelRoots[l].remove(wallGroupsL[l][side]);
+  const G = new THREE.Group();
+  const y0 = lvlY(l);
+  for(let i=0;i<sideLen(side);i++){
+    const data = wallMapL[l][`${side}:${i}`] || (wallMapL[l][`${side}:${i}`] = { mat:"wp_cream", slot:null });
+    const wp = WALLPAPERS.find(w=>w.id===data.mat) || WALLPAPERS[0];
+    const slot = data.slot ? SLOTS.find(s=>s.id===data.slot) : null;
+    const span = (slot && slot.span) || 1;
+    const seg = slot ? buildSlotWall(wp, slot) : buildPlainWall(wp);
+    const t = sideTransform(side, i);
+    if(side==="N"||side==="S") seg.position.set(i + span/2, y0, t.pos[2]);
+    else                        seg.position.set(t.pos[0], y0, i + span/2);
+    seg.rotation.y = t.ry;
+    seg.userData.seg = { side, i, level:l, span };
+    shadowOn(seg);
+    G.add(seg);
+    if(span===2) i++;            // 2マススロットは次のセグメントを兼ねる
+  }
+  const cornY = y0 + (H+0.08)/2;
+  const corns = side==="N" ? [[0,0],[ROOM.w,0]] : side==="S" ? [[0,ROOM.d],[ROOM.w,ROOM.d]] : null;
+  if(corns) for(const [cx,cz] of corns){
+    G.add(box(0.22, H+0.08, 0.22, 0xffffff, cx, cornY, cz));
+    G.add(sph(0.12, 0xffb6d9, cx, y0+H+0.12, cz));
+  }
+  shadowOn(G);
+  wallGroupsL[l][side] = G;
+  levelRoots[l].add(G);
+  applyFade(G, sideFade[side]);
+  for(const wi of wallItems) if(wi.side===side && wi.level===l) attachWallItem(wi);
+}
+function slotSpan(id){ const s = SLOTS.find(x=>x.id===id); return (s && s.span) || 1; }
+function coveringSlot(l, side, i){
+  const cur = wallMapL[l][`${side}:${i}`];
+  if(cur && cur.slot) return { i, id:cur.slot };
+  if(i>0){
+    const prev = wallMapL[l][`${side}:${i-1}`];
+    if(prev && prev.slot && slotSpan(prev.slot)===2) return { i:i-1, id:prev.slot };
+  }
+  return null;
+}
+function canPlaceSlot(l, side, i, slotId){
+  const span = slotSpan(slotId);
+  if(i+span > sideLen(side)) return false;
+  for(let s=0; s<span; s++){
+    if(wallItemMap.has(wk(l,side,i+s))) return false;
+    const cov = coveringSlot(l, side, i+s);
+    if(cov && cov.i!==i) return false;       // 他の窓・ドアと重なる
+  }
+  return true;
+}
+function paintWall(l,side,i,matId,silent){
+  const data = wallMapL[l][`${side}:${i}`];
+  const prev = data.mat;
+  if(prev===matId) return;
+  data.mat = matId;
+  rebuildWall(l, side);
+  if(!silent){ sfx("tick"); undoStack.push({a:"wmat",l,side,i,prev}); }
+}
+function setSlot(l,side,i,slotId,silent){
+  const next0 = slotId==="_clear" ? null : slotId;
+  if(!next0){
+    // クリア：その位置を覆っているスロット（2マス含む）を消す
+    const cov = coveringSlot(l,side,i);
+    if(!cov) return;
+    i = cov.i;
+  }else{
+    if(!canPlaceSlot(l,side,i,next0)){
+      if(!silent){
+        if(wallItemMap.has(wk(l,side,i))) toast("かべかけを先にどかしてね 🖼️");
+        else toast("そこには置けないよ（となりをあけてね）");
+        sfx("nope");
+      }
+      return;
+    }
+  }
+  const data = wallMapL[l][`${side}:${i}`];
+  const prev = data.slot;
+  if(prev===next0) return;
+  data.slot = next0;
+  rebuildWall(l, side);
+  if(!silent){
+    sfx(next0?"kira":"poof");
+    undoStack.push({a:"slot",l,side,i,prev});
+    const t = sideTransform(side,i);
+    sparkleAt(new THREE.Vector3(t.pos[0], lvlY(l)+1.4, t.pos[2]), 0xa8c8ff, 8);
+  }
+}
+
+/* ---------- 家具ビルダー（cs=カラーセット, sid=サイズ） ---------- */
+function buildFlowerbedMesh(cs, cells=1){
+  const g = new THREE.Group();
+  const W = cells === 2 ? 1.82 : 0.86;
+  g.add(box(W,0.22,0.72, cs.main, 0,0.13,0));
+  g.add(box(W-0.14,0.12,0.58, 0x8a5a38, 0,0.22,0));
+  g.add(box(W+0.06,0.08,0.08, cs.deep ?? CSET.woodD.deep, 0,0.28,-0.38));
+  g.add(box(W+0.06,0.08,0.08, cs.deep ?? CSET.woodD.deep, 0,0.28, 0.38));
+  g.add(box(0.08,0.08,0.72, cs.deep ?? CSET.woodD.deep, -W/2,0.28,0));
+  g.add(box(0.08,0.08,0.72, cs.deep ?? CSET.woodD.deep,  W/2,0.28,0));
+  const n = cells === 2 ? 7 : 4;
+  const colors = [0xff8fc4,0xffd66e,0xd9b8ff,0xffffff,0x9fd9ff];
+  for(let i=0;i<n;i++){
+    const x = -W/2 + 0.22 + (W-0.44) * (n===1 ? 0.5 : i/(n-1));
+    const z = (i%2 ? 0.16 : -0.12);
+    g.add(cyl(0.015,0.015,0.18,0x6fbf68,x,0.38,z,6));
+    g.add(sph(0.06, colors[i%colors.length], x,0.5,z));
+    g.add(sph(0.025,0xfff3b0,x,0.55,z));
+  }
+  return g;
+}
+const itemBuilders = {
+  bed(cs, sid){
+    const g = new THREE.Group();
+    const dd = sid==="double" ? 1.84 : 0.92;
+    g.add(box(1.9,0.28,dd, CSET.woodD.lite, 0,0.2,0));
+    g.add(box(1.7,0.18,dd-0.12, 0xfff3f7, -0.05,0.43,0));
+    g.add(box(1.05,0.14,dd-0.12, cs.main, 0.32,0.55,0));
+    if(sid==="double"){
+      g.add(box(0.34,0.13,0.5,0xffffff,-0.62,0.55,-0.42));
+      g.add(box(0.34,0.13,0.5,0xffffff,-0.62,0.55, 0.42));
+    }else{
+      g.add(box(0.34,0.13,0.5,0xffffff,-0.62,0.55,0));
+    }
+    g.add(box(0.12,0.7,dd, CSET.woodD.main,-0.89,0.35,0));
+    return g;
+  },
+  rug(cs, sid){
+    const g = new THREE.Group();
+    const r = sid==="s" ? 0.45 : 0.95;
+    const r1 = cyl(r, r, 0.05, cs.lite, 0,0.03,0, 24);
+    const r2 = cyl(r*0.72, r*0.72, 0.06, 0xfffdf8, 0,0.035,0, 24);
+    const r3 = cyl(r*0.32, r*0.32, 0.07, cs.main, 0,0.04,0, 20);
+    [r1,r2,r3].forEach(m=>{ m.castShadow=false; m.receiveShadow=true; });
+    g.add(r1,r2,r3);
+    if(sid==="l") g.scale.x = 1.45;
+    return g;
+  },
+  table(cs, sid){
+    const g = new THREE.Group();
+    if(sid==="long"){
+      g.add(box(1.84,0.07,0.8, cs.lite, 0,0.5,0));
+      for(const [dx,dz] of [[-0.78,-0.28],[0.78,-0.28],[-0.78,0.28],[0.78,0.28]])
+        g.add(cyl(0.05,0.06,0.46, cs.deep, dx,0.24,dz, 8));
+      g.add(sph(0.09,0xffd66e, 0,0.6,0));
+    }else if(sid==="square"){
+      g.add(box(0.84,0.08,0.84, cs.lite, 0,0.5,0));
+      g.add(box(0.72,0.035,0.72, 0xfff8f0, 0,0.555,0));
+      for(const [dx,dz] of [[-0.32,-0.32],[0.32,-0.32],[-0.32,0.32],[0.32,0.32]])
+        g.add(cyl(0.045,0.055,0.46, cs.deep, dx,0.24,dz, 8));
+      g.add(box(0.34,0.035,0.09, cs.deep, 0,0.61,-0.18));
+      g.add(sph(0.07,0xffd66e, -0.16,0.63,0.12));
+      g.add(sph(0.055,0xffffff, 0.12,0.62,0.14));
+    }else{
+      g.add(cyl(0.42,0.42,0.07, cs.lite, 0,0.5,0, 18));
+      g.add(cyl(0.06,0.08,0.46, cs.deep, 0,0.24,0));
+      g.add(cyl(0.2,0.22,0.05, cs.deep, 0,0.03,0, 14));
+      g.add(sph(0.09,0xffd66e, 0,0.6,0));
+    }
+    return g;
+  },
+  chair(cs){
+    const g = new THREE.Group();
+    g.add(box(0.55,0.1,0.55, cs.main, 0,0.34,0));
+    g.add(box(0.55,0.5,0.1,  cs.main, 0,0.62,-0.23));
+    g.add(sph(0.05, cs.deep, 0, 0.85, -0.23));
+    for(const [dx,dz] of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]])
+      g.add(cyl(0.04,0.05,0.3, CSET.woodD.main, dx,0.15,dz, 8));
+    return g;
+  },
+  sofa(cs, sid){
+    const g = new THREE.Group();
+    const widthMap = { single:0.84, double:1.8, wide:2.7 };
+    const seatsMap = { single:1, double:2, wide:3 };
+    const W = widthMap[sid] || 1.8;
+    const D = 0.84;
+    const seats = seatsMap[sid] || 2;
+    g.add(box(W, 0.24, D, cs.deep, 0, 0.24, 0));
+    g.add(box(W-0.12, 0.18, D-0.16, cs.lite, 0, 0.45, 0.04));
+    g.add(box(W, 0.64, 0.18, cs.main, 0, 0.66, -0.34));
+    g.add(box(0.18, 0.48, D, cs.main, -W/2+0.09, 0.52, 0));
+    g.add(box(0.18, 0.48, D, cs.main,  W/2-0.09, 0.52, 0));
+    const innerW = W - 0.28;
+    const cushionW = innerW / seats;
+    for(let i=0;i<seats;i++){
+      const x = -innerW/2 + cushionW*(i+0.5);
+      g.add(box(cushionW-0.04, 0.08, D-0.24, 0xfff8fb, x, 0.57, 0.06));
+      g.add(box(cushionW-0.05, 0.28, 0.12, cs.lite, x, 0.75, -0.2));
+    }
+    for(const [dx,dz] of [[-W/2+0.14,-0.26],[W/2-0.14,-0.26],[-W/2+0.14,0.26],[W/2-0.14,0.26]]){
+      g.add(cyl(0.04, 0.05, 0.16, CSET.woodD.main, dx, 0.08, dz, 8));
+    }
+    return g;
+  },
+  stool(cs, sid){
+    const g = new THREE.Group();
+    if(sid==="puffy"){
+      const p = sph(0.34, cs.main, 0,0.36,0); p.scale.set(1.05,0.42,1.05); g.add(p);
+      const rim = cyl(0.31,0.31,0.08, cs.lite, 0,0.31,0, 18); rim.scale.y = 0.7; g.add(rim);
+      for(const [dx,dz] of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]])
+        g.add(cyl(0.035,0.045,0.28, CSET.woodD.main, dx,0.14,dz, 8));
+      g.add(sph(0.055,0xffffff, 0.16,0.48,0.08));
+    }else{
+      g.add(cyl(0.34,0.34,0.12, cs.main, 0,0.42,0, 20));
+      g.add(cyl(0.28,0.3,0.06, cs.lite, 0,0.5,0, 20));
+      g.add(cyl(0.07,0.08,0.36, CSET.woodD.main, 0,0.22,0, 10));
+      g.add(cyl(0.24,0.24,0.05, CSET.woodD.lite, 0,0.04,0, 16));
+    }
+    return g;
+  },
+  bench(cs, sid){
+    const g = new THREE.Group();
+    const W = sid==="wide" ? 2.7 : 1.82;
+    g.add(box(W,0.18,0.56, cs.main, 0,0.44,0));
+    g.add(box(W-0.18,0.1,0.46, cs.lite, 0,0.56,0.02));
+    g.add(box(W,0.14,0.12, cs.deep ?? CSET.woodD.deep, 0,0.34,-0.22));
+    for(const x of [-W/2+0.18, W/2-0.18]){
+      for(const z of [-0.18,0.18]) g.add(cyl(0.045,0.055,0.34, CSET.woodD.main, x,0.17,z, 8));
+    }
+    if(sid==="wide") g.add(cyl(0.045,0.055,0.34, CSET.woodD.main, 0,0.17,0.18, 8));
+    g.add(sph(0.06,0xffd66e, -W*0.28,0.66,0));
+    g.add(sph(0.055,0xffffff, W*0.28,0.65,0.02));
+    return g;
+  },
+  desk(cs, sid){
+    const g = new THREE.Group();
+    const W = sid==="craft" ? 2.72 : 1.84;
+    g.add(box(W,0.08,0.82, cs.lite, 0,0.74,0));
+    g.add(box(W,0.06,0.86, cs.deep ?? CSET.woodD.deep, 0,0.68,0));
+    for(const [dx,dz] of [[-W/2+0.12,-0.3],[W/2-0.12,-0.3],[-W/2+0.12,0.3],[W/2-0.12,0.3]])
+      g.add(cyl(0.045,0.055,0.66, CSET.woodD.main, dx,0.34,dz, 8));
+    const unitX = W/2 - 0.38;
+    g.add(box(0.5,0.38,0.44, cs.main, unitX,0.46,0.12));
+    for(const y of [0.38,0.53]){
+      g.add(box(0.4,0.1,0.035, 0xfff8f0, unitX,y,0.35));
+      g.add(sph(0.025,0xffd66e, unitX,y,0.38));
+    }
+    g.add(box(0.36,0.04,0.26,0xffffff, -W*0.25,0.8,-0.05));
+    g.add(box(0.28,0.025,0.18,0xbfeaff, -W*0.25,0.835,-0.05));
+    g.add(cyl(0.04,0.04,0.22,0x7ab86e, 0.02,0.88,0.08, 6));
+    g.add(sph(0.08,0x8fdf8a, 0.02,1.02,0.08));
+    return g;
+  },
+  side_table(cs){
+    const g = new THREE.Group();
+    g.add(box(0.62,0.08,0.62, cs.lite, 0,0.55,0));
+    g.add(box(0.5,0.28,0.48, cs.main, 0,0.34,0));
+    g.add(box(0.42,0.1,0.035, 0xfff8f0, 0,0.38,0.26));
+    g.add(sph(0.025,0xffd66e, 0,0.38,0.29));
+    for(const [dx,dz] of [[-0.22,-0.22],[0.22,-0.22],[-0.22,0.22],[0.22,0.22]])
+      g.add(cyl(0.035,0.045,0.18, CSET.woodD.main, dx,0.09,dz, 8));
+    g.add(cyl(0.07,0.06,0.08, 0xffffff, -0.12,0.64,0.05, 12));
+    g.add(cyl(0.08,0.08,0.015, cs.deep ?? CSET.woodD.deep, 0.12,0.625,0.04, 14));
+    g.add(sph(0.055,0xffd66e, 0.12,0.67,0.04));
+    return g;
+  },
+  vanity(cs, sid){
+    const g = new THREE.Group();
+    const W = sid==="wide" ? 1.82 : 0.86;
+    g.add(box(W,0.42,0.54, cs.lite, 0,0.28,0));
+    g.add(box(W+0.04,0.08,0.62, cs.main, 0,0.53,0));
+    const mirrorW = sid==="wide" ? 0.72 : 0.46;
+    g.add(box(mirrorW+0.12,0.72,0.06, cs.main, 0,0.96,-0.24));
+    g.add(box(mirrorW,0.6,0.035,0xcdeeff, 0,0.96,-0.205));
+    g.add(box(0.08,0.42,0.06, cs.deep ?? CSET.woodD.deep, -W/2+0.16,0.29,0.31));
+    g.add(box(0.08,0.42,0.06, cs.deep ?? CSET.woodD.deep,  W/2-0.16,0.29,0.31));
+    for(const x of sid==="wide" ? [-0.42,0,0.42] : [0]){
+      g.add(box(0.28,0.1,0.035,0xfff8f0,x,0.34,0.31));
+      g.add(sph(0.022,0xffd66e,x,0.34,0.34));
+    }
+    g.add(sph(0.055,0xffb6d9, -W*0.28,0.61,0.12));
+    g.add(sph(0.045,0xffffff, W*0.26,0.61,0.08));
+    return g;
+  },
+  toybox(cs, sid){
+    const g = new THREE.Group();
+    const W = sid==="wide" ? 1.74 : 0.82;
+    g.add(box(W,0.46,0.62, cs.main, 0,0.25,0));
+    g.add(box(W+0.06,0.08,0.68, cs.deep ?? CSET.woodD.deep, 0,0.52,-0.02));
+    g.add(box(W-0.16,0.28,0.48, cs.lite, 0,0.3,0.04));
+    g.add(box(0.22,0.06,0.08,0xfff8f0,0,0.5,0.34));
+    const balls = sid==="wide" ? [[-0.48,0xffb6d9],[-0.2,0xffd66e],[0.08,0x9fd9ff],[0.36,0xb3f0dc]] : [[-0.16,0xffb6d9],[0.12,0xffd66e]];
+    balls.forEach(([x,c],i)=>g.add(sph(0.11, c, x,0.62, i%2?0.08:-0.08)));
+    return g;
+  },
+  floor_mirror(cs){
+    const g = new THREE.Group();
+    g.add(box(0.58,1.46,0.08, cs.main, 0,0.86,-0.18));
+    g.add(box(0.46,1.26,0.035,0xcdeeff, 0,0.88,-0.13));
+    g.add(box(0.7,0.08,0.36, cs.deep ?? CSET.woodD.deep, 0,0.08,0));
+    const legA = box(0.05,0.9,0.06, CSET.woodD.main, -0.22,0.48,0.04); legA.rotation.x = -0.16; g.add(legA);
+    const legB = box(0.05,0.9,0.06, CSET.woodD.main, 0.22,0.48,0.04); legB.rotation.x = -0.16; g.add(legB);
+    g.add(sph(0.055,0xffd66e,0,1.55,-0.12));
+    return g;
+  },
+  cushion(cs){
+    const g = new THREE.Group();
+    const c = sph(0.34, cs.main, 0,0.22,0); c.scale.y=0.55; g.add(c);
+    const e1=sph(0.1, cs.main,-0.2,0.42,0), e2=sph(0.1, cs.main,0.2,0.42,0);
+    e1.scale.set(1,1.3,0.6); e2.scale.set(1,1.3,0.6); g.add(e1,e2);
+    return g;
+  },
+  partition(cs, sid){
+    /* マス境界にスナップする室内のしきり。両端にまるい柱つき */
+    const g = new THREE.Group();
+    const W = ({s1:1, s2:2, s3:3})[sid] || 1;
+    const railY = 0.92;
+    g.add(box(W-0.04, H-railY-0.06, 0.18, cs.lite, 0, (H+railY)/2-0.03, 0));
+    g.add(box(W-0.04, railY, 0.18, 0xffffff, 0, railY/2, 0));
+    g.add(box(W-0.02, 0.06, 0.23, 0xffffff, 0, railY, 0));          // チェアレール
+    g.add(box(W-0.02, 0.12, 0.23, 0xffffff, 0, 0.06, 0));           // 巾木
+    g.add(box(W-0.02, 0.09, 0.23, 0xffffff, 0, H-0.05, 0));         // 天端
+    for(const sx of [-W/2+0.07, W/2-0.07]){
+      g.add(box(0.14, H+0.06, 0.23, 0xffffff, sx, (H+0.06)/2, 0));  // はしらの飾り
+    }
+    return g;
+  },
+  partition_fence(cs, sid){
+    /* マス境界に置く低めのしきり柵。見通しを残して部屋を区切る */
+    const g = new THREE.Group();
+    const W = ({s1:1, s2:2, s3:3})[sid] || 1;
+    const postColor = cs.deep ?? CSET.woodD.main;
+    const railColor = cs.main ?? CSET.woodL.main;
+    // 両端＋中間柱
+    for(let i=0;i<=W;i++){
+      const x = -W/2 + i;
+      g.add(box(0.12, 1.18, 0.18, postColor, x, 0.59, 0));
+    }
+    // 上下レール
+    g.add(box(W, 0.12, 0.16, railColor, 0, 0.95, 0));
+    g.add(box(W, 0.12, 0.16, railColor, 0, 0.48, 0));
+    // かわいい縦桟
+    const count = Math.max(2, W*3);
+    for(let i=0;i<count;i++){
+      const x = -W/2 + (i+0.5)*(W/count);
+      g.add(box(0.055, 0.48, 0.12, cs.lite ?? 0xffffff, x, 0.7, 0));
+    }
+    return g;
+  },
+  partition_door(cs, sid){
+    /* マス境界に置くしきりドア。片開き / 両開き */
+    const g = new THREE.Group();
+    const W = sid==="s2" ? 2 : 1;
+    const doorW = W - 0.22;
+    const frame = 0xffffff;
+    // フレーム
+    g.add(box(W, 0.12, 0.22, frame, 0, H-0.06, 0));
+    g.add(box(0.12, H, 0.22, frame, -W/2+0.06, H/2, 0));
+    g.add(box(0.12, H, 0.22, frame,  W/2-0.06, H/2, 0));
+    if(W===2) g.add(box(0.08, H, 0.2, frame, 0, H/2, 0));
+    // 扉
+    if(W===2){
+      for(const sx of [-1,1]){
+        g.add(box(doorW/2-0.06, 1.88, 0.09, cs.main, sx*W/4, 0.94, 0));
+        g.add(box(doorW/2-0.22, 0.48, 0.1, cs.lite, sx*W/4, 1.36, 0.01));
+        g.add(box(0.045, 0.2, 0.035, 0xffd66e, sx*0.12, 0.95, 0.085));
+      }
+    }else{
+      g.add(box(doorW, 1.88, 0.09, cs.main, 0, 0.94, 0));
+      g.add(box(doorW-0.18, 0.48, 0.1, cs.lite, 0, 1.36, 0.01));
+      g.add(box(0.045, 0.2, 0.035, 0xffd66e, doorW/2-0.18, 0.95, 0.085));
+    }
+    g.add(box(W, 0.1, 0.24, frame, 0, 0.05, 0));
+    return g;
+  },
+  partition_window(cs, sid){
+    /* マス境界に置く室内窓つきしきり。抜け感のある壁 */
+    const g = new THREE.Group();
+    const W = sid==="s2" ? 2 : 1;
+    const railY = 0.88;
+    // 下壁と上壁
+    g.add(box(W-0.04, railY, 0.18, 0xffffff, 0, railY/2, 0));
+    g.add(box(W-0.04, 0.42, 0.18, cs.lite, 0, H-0.21, 0));
+    g.add(box(W-0.02, 0.08, 0.23, 0xffffff, 0, railY, 0));
+    g.add(box(W-0.02, 0.1, 0.23, 0xffffff, 0, H-0.05, 0));
+    // 窓
+    const ww = W - 0.28;
+    const wh = 0.9;
+    const wy = 1.55;
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, 0.04),
+      new THREE.MeshLambertMaterial({ color:0xcdeeff, transparent:true, opacity:0.48 }));
+    glass.position.set(0, wy, 0.01); glass.castShadow=false; glass.receiveShadow=true; g.add(glass);
+    g.add(box(ww+0.12, 0.07, 0.1, 0xffffff, 0, wy+wh/2, 0.04));
+    g.add(box(ww+0.12, 0.07, 0.1, 0xffffff, 0, wy-wh/2, 0.04));
+    g.add(box(0.07, wh+0.08, 0.1, 0xffffff, -ww/2, wy, 0.04));
+    g.add(box(0.07, wh+0.08, 0.1, 0xffffff,  ww/2, wy, 0.04));
+    g.add(box(0.05, wh, 0.08, 0xffffff, 0, wy, 0.05));
+    if(W===2){
+      g.add(box(ww, 0.05, 0.08, 0xffffff, 0, wy, 0.05));
+      g.add(box(0.05, wh, 0.08, 0xffffff, -ww/4, wy, 0.05));
+      g.add(box(0.05, wh, 0.08, 0xffffff,  ww/4, wy, 0.05));
+    }
+    for(const sx of [-W/2+0.07, W/2-0.07]){
+      g.add(box(0.14, H+0.06, 0.23, 0xffffff, sx, (H+0.06)/2, 0));
+    }
+    return g;
+  },
+  stairs(cs, sid){
+    /* 1x3マス・ローカル+zへ上る。1ブロックあたり4段 = 合計12段で、最上段は2F床(LV_H)に到達 */
+    const g = new THREE.Group();
+    const stepsPerBlock = 4;
+    const blocks = 3;
+    const steps = stepsPerBlock * blocks;
+    const depth = 2.84;
+    const SW = sid==="wide" ? 1.84 : 0.84;       // ワイドは横2マス
+    const sd = depth / steps;
+    const sh = LV_H / steps;
+    for(let i=0;i<steps;i++){
+      const y = sh * (i + 0.5);
+      const z = -depth/2 + sd * (i + 0.5);
+      const treadColor = i%2 ? cs.main : cs.lite;
+      g.add(box(SW, sh, sd, treadColor, 0, y, z));
+      if(i>0 && i%stepsPerBlock===0){
+        g.add(box(SW+0.06, 0.025, 0.035, 0xffffff, 0, sh*i + 0.015, -depth/2 + sd*i));
+      }
+    }
+    const railX = SW/2 + 0.03;
+    for(const sx of [-1,1]){
+      const rail = box(0.06, 0.1, depth+0.08, 0xffffff, sx*railX, H*0.55, 0);
+      rail.rotateX(-Math.atan2(H,depth)*0.96);
+      g.add(rail);
+      for(let i=0;i<=6;i++){
+        const z = -depth/2 + (depth/6)*i;
+        const y = ((z + depth/2) / depth) * H;
+        g.add(cyl(0.03,0.03,0.46, 0xffffff, sx*railX, y+0.24, z, 8));
+      }
+    }
+    return g;
+  },
+  lamp(cs){
+    const g = new THREE.Group();
+    g.add(cyl(0.18,0.22,0.06, CSET.woodD.main, 0,0.03,0, 14));
+    g.add(cyl(0.035,0.035,0.7,0xe8d8c4, 0,0.4,0, 8));
+    g.add(cyl(0.16,0.26,0.3, cs.lite, 0,0.86,0, 14));
+    g.add(sph(0.05, cs.deep, 0, 1.04, 0));
+    const glow = new THREE.PointLight(0xffe2a0, 0.0, 4.5);
+    glow.position.set(0,0.8,0); g.add(glow);
+    g.userData.glow = glow;
+    return g;
+  },
+  shelf(cs, sid){
+    const g = new THREE.Group();
+    const W = sid==="mini" ? 0.84 : 1.8;
+    g.add(box(W,1.3,0.5, cs.main, 0,0.65,0));
+    g.add(box(W-0.2,0.5,0.4,0xfff8f0, 0,0.42,0.07));
+    g.add(box(W-0.2,0.5,0.4,0xfff8f0, 0,1.0,0.07));
+    const cols=[0xffb6d9,0x9fd9ff,0xb3f0dc,0xffd66e,0xd9b8ff];
+    const n = sid==="mini" ? 2 : 5;
+    for(let i=0;i<n;i++){
+      const x = (i-(n-1)/2)*0.3;
+      g.add(box(0.16,0.4,0.3,cols[i%cols.length], x,0.42,0.1));
+      g.add(box(0.16,0.4,0.3,cols[(i+2)%cols.length], x,1.0,0.1));
+    }
+    return g;
+  },
+  tv(cs, sid){
+    const g = new THREE.Group();
+    const W = sid==="mini" ? 0.84 : 1.7, SW = sid==="mini" ? 0.66 : 1.32;
+    g.add(box(W,0.16,0.7,0xc89a6e, 0,0.08,0));
+    g.add(box(SW+0.18,0.85,0.12,0x6e6680, 0,0.65,0));
+    const sc = box(SW,0.68,0.02,0xbfeaff, 0,0.65,0.07); g.add(sc);
+    g.userData.screen = sc;
+    g.add(sph(0.05,0xff8fc4, SW/2-0.06,0.16,0.25));
+    return g;
+  },
+  kitchen(cs){
+    const g = new THREE.Group();
+    g.add(box(1.9,0.78,0.8, cs.lite, 0,0.39,0));
+    g.add(box(1.94,0.08,0.84,0xc89a6e, 0,0.82,0));
+    g.add(box(0.6,0.04,0.5,0x9fd9ff, -0.5,0.87,0));
+    g.add(cyl(0.03,0.03,0.22,0xcfd6e0, -0.5,0.97,-0.18, 8));
+    g.add(cyl(0.04,0.04,0.05,0xcfd6e0, -0.5,1.08,-0.1, 8));
+    for(const dx of [0.25,0.65]) g.add(cyl(0.13,0.13,0.03,0x6e6680, dx,0.87,0, 14));
+    g.add(cyl(0.14,0.12,0.12, cs.deep, 0.25,0.94,0, 14));
+    g.add(sph(0.05,0xffffff, 0.25,1.02,0));
+    g.add(box(0.4,0.4,0.04, cs.main, -0.45,0.35,0.41));
+    g.add(box(0.4,0.4,0.04, cs.main, 0.45,0.35,0.41));
+    g.add(sph(0.04,0xffd66e, -0.3,0.35,0.45));
+    g.add(sph(0.04,0xffd66e, 0.3,0.35,0.45));
+    return g;
+  },
+  toilet(cs){
+    const g = new THREE.Group();
+    g.add(box(0.5,0.58,0.24, cs.lite, 0,0.48,-0.28));
+    g.add(box(0.38,0.08,0.08, cs.deep ?? 0xe8ddd0, 0,0.8,-0.14));
+    const bowl = cyl(0.28,0.22,0.26, cs.main, 0,0.28,0.12, 20);
+    bowl.scale.z = 1.18; g.add(bowl);
+    const hole = cyl(0.17,0.14,0.03, 0xcdeeff, 0,0.43,0.12, 20);
+    hole.scale.z = 1.18; g.add(hole);
+    const seat = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.035,8,24), L(0xfffdf8));
+    seat.position.set(0,0.46,0.12); seat.rotation.x = Math.PI/2; seat.scale.z = 1.18; g.add(seat);
+    g.add(box(0.22,0.18,0.18, cs.lite, 0,0.13,0.03));
+    g.add(sph(0.035,0xffd66e, 0.18,0.66,-0.16));
+    return g;
+  },
+  bathtub(cs){
+    const g = new THREE.Group();
+    g.add(box(1.8,0.46,0.82, cs.main, 0,0.26,0));
+    g.add(box(1.62,0.34,0.64, 0xfffdf8, 0,0.36,0));
+    const water = box(1.42,0.035,0.48, 0x9fd9ff, 0,0.55,0);
+    water.material.transparent = true; water.material.opacity = 0.62; g.add(water);
+    g.add(box(1.9,0.08,0.92, cs.lite, 0,0.56,0));
+    g.add(box(1.58,0.09,0.56, 0xfffdf8, 0,0.585,0));
+    g.add(cyl(0.035,0.035,0.32,0xcfd6e0, -0.68,0.78,-0.22, 8));
+    const spout = cyl(0.028,0.028,0.28,0xcfd6e0, -0.56,0.8,-0.1, 8);
+    spout.rotation.z = Math.PI/2; g.add(spout);
+    g.add(sph(0.08,0xffffff, 0.42,0.64,0.12));
+    g.add(sph(0.06,0xffffff, 0.56,0.66,0.0));
+    g.add(sph(0.045,0xffffff, 0.28,0.66,-0.06));
+    return g;
+  },
+  washbasin(cs){
+    const g = new THREE.Group();
+    g.add(box(0.72,0.56,0.54, cs.lite, 0,0.28,0));
+    g.add(box(0.78,0.1,0.62, cs.main, 0,0.61,0));
+    const basin = cyl(0.26,0.2,0.12,0xfffdf8,0,0.69,0.05,20);
+    basin.scale.z = 0.72; g.add(basin);
+    g.add(cyl(0.035,0.035,0.2,0xcfd6e0, 0,0.84,-0.08, 8));
+    const spout = cyl(0.025,0.025,0.18,0xcfd6e0, 0,0.91,0.02, 8);
+    spout.rotation.x = Math.PI/2; g.add(spout);
+    g.add(sph(0.035,0xff8fa0,-0.12,0.77,-0.12));
+    g.add(sph(0.035,0x9fd9ff, 0.12,0.77,-0.12));
+    g.add(box(0.52,0.68,0.06, cs.main, 0,1.15,-0.25));
+    g.add(box(0.42,0.55,0.035,0xcdeeff, 0,1.15,-0.21));
+    g.add(box(0.42,0.1,0.035,0xfff8f0, 0,0.35,0.29));
+    g.add(sph(0.022,0xffd66e,0,0.35,0.32));
+    return g;
+  },
+  chest(cs){
+    const g = new THREE.Group();
+    g.add(box(0.8,0.5,0.6, cs.lite, 0,0.25,0));
+    g.add(box(0.84,0.22,0.64, cs.main, 0,0.58,0));
+    g.add(box(0.1,0.16,0.06,0xffd66e, 0,0.45,0.31));
+    return g;
+  },
+  plant(cs){
+    const g = new THREE.Group();
+    g.add(cyl(0.2,0.15,0.3, cs.main, 0,0.15,0, 12));
+    g.add(cyl(0.04,0.04,0.4,0x7ab86e, 0,0.45,0, 6));
+    g.add(sph(0.24,0x8fdf8a, 0,0.72,0));
+    g.add(sph(0.16,0xa5e8a0, 0.16,0.6,0.05));
+    g.add(sph(0.16,0xa5e8a0, -0.15,0.62,-0.05));
+    return g;
+  },
+  flower(cs){
+    const g = new THREE.Group();
+    g.add(cyl(0.22,0.17,0.26,0xfff3e0, 0,0.13,0, 12));
+    const pos=[[-0.1,-0.05],[0.08,0.08],[0.1,-0.09]];
+    pos.forEach(([dx,dz],i)=>{
+      g.add(cyl(0.018,0.018,0.32,0x7ab86e, dx,0.4,dz, 6));
+      const f=sph(0.08, i===1? cs.deep : cs.main, dx,0.58,dz); f.scale.y=1.15; g.add(f);
+      g.add(sph(0.035,0xfff3b0, dx,0.65,dz));
+    });
+    return g;
+  },
+  flowerbed_1(cs){
+    return buildFlowerbedMesh(cs, 1);
+  },
+  flowerbed_2(cs){
+    return buildFlowerbedMesh(cs, 2);
+  },
+  yard_tree(cs){
+    const g = new THREE.Group();
+    const trunk = cyl(0.09,0.12,0.62, CSET.woodD.main, 0,0.31,0, 6);
+    g.add(trunk);
+    for(let i=0;i<3;i++){
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry((0.46-i*0.07), (0.72-i*0.06), 7),
+        L(i%2 ? 0x7fd976 : 0x68bf65)
+      );
+      cone.position.set(0,0.78+i*0.28,0);
+      cone.rotation.y = i*0.7;
+      cone.castShadow = cone.receiveShadow = true;
+      g.add(cone);
+    }
+    g.add(cyl(0.32,0.34,0.06,0x8fdc7d,0,0.035,0,14));
+    return g;
+  },
+  weeds(cs){
+    const g = new THREE.Group();
+    const greens = [0x6fbf68, 0x78c95f, 0x8fdc7d, 0xb3d86a];
+    for(let i=0;i<9;i++){
+      const blade = box(0.035, 0.18 + (i%4)*0.05, 0.035, greens[i%greens.length], 0,0.12,0);
+      blade.position.x = Math.cos(i*2.2) * (0.08 + (i%3)*0.04);
+      blade.position.z = Math.sin(i*2.2) * (0.08 + (i%3)*0.04);
+      blade.rotation.z = (i%2 ? 0.35 : -0.35);
+      blade.rotation.x = (i%3 - 1) * 0.25;
+      g.add(blade);
+    }
+    g.add(cyl(0.22,0.22,0.035,0x75c468,0,0.02,0,14));
+    return g;
+  },
+};
+
+/* ---------- 壁かけビルダー ---------- */
+const wallItemBuilders = {
+  clock(cs){
+    const g = new THREE.Group();
+    g.add(cyl(0.26,0.26,0.07, cs.main, 0,0,0, 24).rotateX(Math.PI/2));
+    g.add(cyl(0.22,0.22,0.075,0xfffdf8, 0,0,0.005, 24).rotateX(Math.PI/2));
+    g.add(cyl(0.012,0.09,0.18, cs.main, -0.17,0.3,0, 4));
+    g.add(cyl(0.012,0.09,0.18, cs.main,  0.17,0.3,0, 4));
+    g.add(box(0.03,0.13,0.02,0x8a6248, 0,0.05,0.05));
+    g.add(box(0.1,0.03,0.02,0x8a6248, 0.04,0,0.05));
+    g.add(sph(0.025, cs.deep ?? 0xff8fc4, 0,0,0.06));
+    return g;
+  },
+  art(cs, _sid, cid){
+    const g = new THREE.Group();
+    g.add(box(0.62,0.5,0.05,0xd8b48a, 0,0,0));
+    g.add(box(0.52,0.4,0.06,0xfffdf6, 0,0,0.005));
+    if(cid==="star"){
+      for(const [dx,dy,s] of [[0,0.04,0.07],[-0.13,-0.08,0.045],[0.14,-0.06,0.045]]){
+        const st=sph(s,0xffd66e,dx,dy,0.04); st.scale.z=0.4; g.add(st);
+      }
+    }else if(cid==="rainbow"){
+      const cols=[0xff8fa0,0xffd66e,0x9fd9ff];
+      cols.forEach((c,i)=>{
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(0.16-i*0.045, 0.02, 8, 16, Math.PI), L(c));
+        arc.position.set(0,-0.08,0.04); g.add(arc);
+      });
+    }else{
+      const h1=sph(0.07,0xff8fc4,-0.04,0.02,0.04), h2=sph(0.07,0xff8fc4,0.04,0.02,0.04);
+      h1.scale.z=0.4; h2.scale.z=0.4; g.add(h1,h2);
+      const h3=box(0.1,0.1,0.028,0xff8fc4, 0,-0.04,0.04); h3.rotation.z=Math.PI/4; g.add(h3);
+    }
+    return g;
+  },
+  painting(cs, _sid, cid){
+    const g = new THREE.Group();
+    const bg = {
+      pink:0xffe4f0, mint:0xe2f7ee, lavender:0xefe4ff, sky:0xddf1fc, yellow:0xfff0b8
+    }[cid] || 0xfff3f7;
+    g.add(box(0.84, 0.64, 0.05, 0xc89a6e, 0, 0, 0));
+    g.add(box(0.72, 0.52, 0.06, 0xfffdf8, 0, 0, 0.01));
+    g.add(box(0.62, 0.42, 0.065, bg, 0, 0, 0.025));
+    const stem = box(0.035, 0.2, 0.025, 0x7ab86e, -0.03, -0.11, 0.06);
+    stem.rotation.z = -0.22; g.add(stem);
+    g.add(sph(0.085, cs.main, -0.16, 0.08, 0.07));
+    g.add(sph(0.07, cs.deep, 0.04, -0.02, 0.07));
+    g.add(sph(0.052, 0xffffff, 0.18, 0.11, 0.07));
+    g.add(sph(0.035, 0xffd66e, -0.02, 0.03, 0.075));
+    return g;
+  },
+  poster(cs, _sid, cid){
+    const g = new THREE.Group();
+    const posterBg = { pink:0xffe4f0, mint:0xe2f7ee, lavender:0xefe4ff, sky:0xddf1fc }[cid] || 0xfff3f7;
+    g.add(box(0.62, 0.9, 0.03, 0xfffbf4, 0, 0, 0));
+    g.add(box(0.68, 0.04, 0.05, 0xc89a6e, 0,  0.46, 0.02));
+    g.add(box(0.68, 0.04, 0.05, 0xc89a6e, 0, -0.46, 0.02));
+    g.add(box(0.5, 0.76, 0.035, posterBg, 0, 0, 0.02));
+    const left = cyl(0.01, 0.01, 0.22, 0x8a6248, -0.17, 0.58, 0.02, 6);
+    const right = cyl(0.01, 0.01, 0.22, 0x8a6248, 0.17, 0.58, 0.02, 6);
+    left.rotation.z = 0.55; right.rotation.z = -0.55;
+    g.add(left, right);
+    g.add(sph(0.12, cs.main, 0, 0.2, 0.06));
+    g.add(sph(0.08, cs.deep, -0.14, -0.06, 0.06));
+    g.add(sph(0.06, 0xffffff, 0.16, -0.16, 0.06));
+    g.add(box(0.28, 0.035, 0.025, CSET.woodL.deep, 0.02, -0.3, 0.06));
+    g.add(box(0.18, 0.03, 0.025, CSET.woodL.deep, -0.05, -0.36, 0.06));
+    return g;
+  },
+  triangle_deco(cs){
+    const g = new THREE.Group();
+    g.add(box(0.92,0.035,0.025, CSET.woodL.deep, 0,0.16,0.04));
+    const cols = [cs.main, cs.lite ?? 0xfff8f0, cs.deep ?? cs.main, 0xfff8f0];
+    for(let i=0;i<4;i++){
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0.09);
+      shape.lineTo(-0.09, -0.09);
+      shape.lineTo(0.09, -0.09);
+      shape.lineTo(0, 0.09);
+      const tri = new THREE.Mesh(new THREE.ShapeGeometry(shape), L(cols[i%cols.length]));
+      tri.position.set(-0.33 + i*0.22, -0.005, 0.065);
+      tri.rotation.z = (i%2 ? 0.04 : -0.04);
+      g.add(tri);
+    }
+    for(const x of [-0.44,0.44]) g.add(sph(0.025,0xffd66e,x,0.16,0.07));
+    return g;
+  },
+  wall_towel(cs){
+    const g = new THREE.Group();
+    g.add(box(0.58,0.045,0.045,0xc89a6e, 0,0.18,0.06));
+    for(const x of [-0.31,0.31]) g.add(sph(0.035,0xffd66e,x,0.18,0.07));
+    g.add(box(0.42,0.42,0.045, cs.main, 0,-0.05,0.08));
+    g.add(box(0.36,0.055,0.052, cs.lite ?? 0xfff8f0, 0,0.05,0.105));
+    g.add(box(0.055,0.34,0.052, cs.deep ?? 0xe8ddd0, 0.14,-0.08,0.11));
+    g.add(box(0.36,0.055,0.052, 0xfff8f0, 0,-0.24,0.105));
+    return g;
+  },
+  wallshelf(cs){
+    const g = new THREE.Group();
+    g.add(box(0.85,0.06,0.26, cs.main, 0,0,0.13));
+    g.add(box(0.05,0.12,0.2, cs.deep, -0.35,-0.08,0.1));
+    g.add(box(0.05,0.12,0.2, cs.deep,  0.35,-0.08,0.1));
+    g.add(box(0.1,0.2,0.14,0x9fd9ff, -0.25,0.13,0.13));
+    g.add(box(0.1,0.18,0.14,0xffd66e, -0.13,0.12,0.13));
+    g.add(cyl(0.06,0.05,0.1,0xf2a48c, 0.15,0.08,0.13, 10));
+    g.add(sph(0.07,0x8fdf8a, 0.15,0.18,0.13));
+    return g;
+  },
+  walllamp(cs){
+    const g = new THREE.Group();
+    g.add(box(0.12,0.2,0.06,0x6e6680, 0,0,0));
+    g.add(box(0.06,0.06,0.18,0x6e6680, 0,0.06,0.1));
+    g.add(cyl(0.09,0.13,0.18, cs.lite, 0,0.02,0.2, 12));
+    const glow = new THREE.PointLight(0xffd9a0, 0.0, 4.0);
+    glow.position.set(0,0,0.22); g.add(glow);
+    g.userData.glow = glow;
+    return g;
+  },
+};
+function buildItemMesh(def, sid, cid){
+  const cs = csOf(cid || (defColors(def)[0] ?? "white"));
+  return itemBuilders[def.id](cs, sid, cid);
+}
+function buildWallItemMesh(def, cid){
+  const cs = csOf(cid || (defColors(def)[0] ?? "white"));
+  return wallItemBuilders[def.id](cs, null, cid);
+}
+
+/* ---------- 家具配置 ---------- */
+function itemCells(def, sid, x, z, rot){
+  const s = sizeOf(def, sid);
+  const w = (rot%2===0)? s.w : s.d;
+  const d = (rot%2===0)? s.d : s.w;
+  const cells = [];
+  for(let i=0;i<w;i++) for(let j=0;j<d;j++) cells.push([x+i, z+j]);
+  return { cells, w, d };
+}
+function isEdgeWall(def){ return !!(def && def.edgeWall); }
+function clampInt(v, min, max){ return Math.max(min, Math.min(max, Math.floor(v))); }
+function edgeWallLen(def, sid){ return Math.max(1, sizeOf(def, sid).w || 1); }
+function edgeWallPlacement(def, sid, x, z, rot){
+  const len = edgeWallLen(def, sid);
+  if(rot%2===0){
+    // 横向き: x方向に伸び、zはマス境界の整数ライン
+    return { x, z, len, w:len, d:0, cx:x + len/2, cz:z };
+  }
+  // 縦向き: z方向に伸び、xはマス境界の整数ライン
+  return { x, z, len, w:0, d:len, cx:x, cz:z + len/2 };
+}
+function edgeWallFromPoint(def, sid, p, rot){
+  const len = edgeWallLen(def, sid);
+  if(rot%2===0){
+    const x = clampInt(Math.floor(p.x - len/2 + 0.5), 0, ROOM.w - len);
+    const z = clampInt(Math.round(p.z), 1, ROOM.d - 1);
+    return edgeWallPlacement(def, sid, x, z, rot);
+  }
+  const x = clampInt(Math.round(p.x), 1, ROOM.w - 1);
+  const z = clampInt(Math.floor(p.z - len/2 + 0.5), 0, ROOM.d - len);
+  return edgeWallPlacement(def, sid, x, z, rot);
+}
+function edgeWallInBounds(def, sid, x, z, rot){
+  const len = edgeWallLen(def, sid);
+  if(rot%2===0) return x>=0 && x+len<=ROOM.w && z>=1 && z<=ROOM.d-1;
+  return x>=1 && x<=ROOM.w-1 && z>=0 && z+len<=ROOM.d;
+}
+function edgeWallKeys(def, sid, l, x, z, rot){
+  const len = edgeWallLen(def, sid);
+  const keys = [];
+  if(rot%2===0){
+    for(let i=0;i<len;i++) keys.push(`${l}|H|${x+i},${z}`);
+  }else{
+    for(let i=0;i<len;i++) keys.push(`${l}|V|${x},${z+i}`);
+  }
+  return keys;
+}
+function edgeWallCutsFurniture(def, sid, l, x, z, rot){
+  const len = edgeWallLen(def, sid);
+  if(rot%2===0){
+    for(let i=0;i<len;i++){
+      const a = occ.get(fk(l, x+i, z-1));
+      const b = occ.get(fk(l, x+i, z));
+      if(a && b && a===b) return true;     // 大きな家具の真ん中を切らない
+    }
+  }else{
+    for(let i=0;i<len;i++){
+      const a = occ.get(fk(l, x-1, z+i));
+      const b = occ.get(fk(l, x,   z+i));
+      if(a && b && a===b) return true;
+    }
+  }
+  return false;
+}
+function canPlaceEdgeWall(def, sid, l, x, z, rot){
+  if(!edgeWallInBounds(def, sid, x, z, rot)) return false;
+  if(edgeWallCutsFurniture(def, sid, l, x, z, rot)) return false;
+  for(const k of edgeWallKeys(def, sid, l, x, z, rot)) if(edgeOcc.has(k)) return false;
+  return true;
+}
+function canPlaceItem(def, sid, l, x, z, rot){
+  if(isEdgeWall(def)) return canPlaceEdgeWall(def, sid, l, x, z, rot);
+  if(def.stairs && l!==0) return false;                       // かいだんは1Fのみ
+  const { cells } = itemCells(def, sid, x, z, rot);
+  for(const [cx,cz] of cells){
+    if(def.outdoorOnly && isInsideRoomCell(cx,cz)) return false; // 外用は外床の上だけ
+    if(!isValidFloorCell(l,cx,cz)) return false;
+    if(def.stairs && !isInsideRoomCell(cx,cz)) return false;  // かいだんは室内だけ
+    if(def.layer!=="rug" && occ.has(fk(l,cx,cz))) return false;
+    if(def.stairs && occ.has(fk(1,cx,cz))) return false;      // 2Fの家具の下に階段はNG
+  }
+  return true;
+}
+function recomputeHoles(){
+  holeSet.clear();
+  for(const it of items){
+    if(it.id!=="stairs") continue;
+    for(const k of it.cells) holeSet.add(k.split("|")[1]);
+  }
+  rebuildFloor(1);
+}
+function addItem(id, sid, cid, l, x, z, rot, silent){
+  const def = ITEMS.find(f=>f.id===id);
+  if(!def) return false;
+  sid = sizeOf(def, sid).sid;
+  cid = defColors(def).includes(cid) ? cid : (defColors(def)[0] ?? null);
+  if(!canPlaceItem(def, sid, l, x, z, rot)) return false;
+  const edgeWall = isEdgeWall(def);
+  const cellInfo = edgeWall ? { cells:[], w:0, d:0 } : itemCells(def, sid, x, z, rot);
+  const place = edgeWall ? edgeWallPlacement(def, sid, x, z, rot) : null;
+  const group = buildItemMesh(def, sid, cid);
+  group.rotation.y = -rot * Math.PI/2;
+  if(edgeWall) group.position.set(place.cx, lvlY(l), place.cz);
+  else         group.position.set(x + cellInfo.w/2, lvlY(l), z + cellInfo.d/2);
+  shadowOn(group);
+  levelRoots[l].add(group);
+  const rec = { id, size:sid, color:cid, x, z, rot, level:l, group,
+    cells: cellInfo.cells.map(c=>fk(l,...c)), edges: edgeWall ? edgeWallKeys(def, sid, l, x, z, rot) : [],
+    noOcc: edgeWall || def.layer==="rug", edgeWall };
+  group.userData.item = rec;
+  items.push(rec);
+  if(edgeWall) for(const k of rec.edges) edgeOcc.set(k, rec);
+  else if(!rec.noOcc) for(const k of rec.cells) occ.set(k, rec);
+  if(def.stairs){
+    // 吹き抜けの上に乗ってる2F家具をおかたづけ
+    for(const other of [...items]){
+      if(other.level===1 && other.cells.some(k=>cellInfo.cells.some(c=>k===fk(1,...c)))) removeItem(other, true);
+    }
+    recomputeHoles();
+  }
+  if(!silent){ popIn(group); sparkleAt(group.position.clone().add(new THREE.Vector3(0,0.5,0)), edgeWall?0xa8c8ff:0xffb6d9, 10); sfx("kira"); undoStack.push({a:"addI",rec}); }
+  return true;
+}
+function removeItem(rec, silent){
+  const i = items.indexOf(rec); if(i<0) return false;
+  const attached = rec.edgeWall ? attachedWallItemsForEdgeItem(rec).map(exportWallItem) : [];
+  for(const wi of [...attachedWallItemsForEdgeItem(rec)]) removeWallItem(wi, true);
+  levelRoots[rec.level].remove(rec.group); items.splice(i,1);
+  if(rec.edgeWall && rec.edges) for(const k of rec.edges) if(edgeOcc.get(k)===rec) edgeOcc.delete(k);
+  if(!rec.noOcc) for(const k of rec.cells) if(occ.get(k)===rec) occ.delete(k);
+  if(rec.id==="stairs") recomputeHoles();
+  if(!silent){
+    sfx("poof");
+    undoStack.push({a:"remI", data:{id:rec.id,size:rec.size,color:rec.color,l:rec.level,x:rec.x,z:rec.z,rot:rec.rot}, attached});
+  }
+  return true;
+}
+
+/* ---------- 壁かけ ---------- */
+function edgeWallItemTransform(l, orient, x, z, face, h){
+  const y = lvlY(l) + h;
+  const off = TH/2 + 0.055;
+  if(orient==="H"){
+    // H = x方向に伸びるしきり。face=+1 は +z 面、-1 は -z 面
+    return {
+      pos: new THREE.Vector3(x+0.5, y, z + face*off),
+      ry: face>0 ? 0 : Math.PI
+    };
+  }
+  // V = z方向に伸びるしきり。face=+1 は +x 面、-1 は -x 面
+  return {
+    pos: new THREE.Vector3(x + face*off, y, z+0.5),
+    ry: face>0 ? Math.PI/2 : -Math.PI/2
+  };
+}
+function edgeTargetFromHit(rec, p){
+  const def = ITEMS.find(f=>f.id===rec.id);
+  const len = edgeWallLen(def, rec.size);
+  const orient = rec.rot%2===0 ? "H" : "V";
+  if(orient==="H"){
+    const x = clampInt(Math.floor(p.x), rec.x, rec.x + len - 1);
+    const z = rec.z;
+    const face = camera.position.z >= z ? 1 : -1;
+    return { target:"edge", orient, x, z, face };
+  }
+  const x = rec.x;
+  const z = clampInt(Math.floor(p.z), rec.z, rec.z + len - 1);
+  const face = camera.position.x >= x ? 1 : -1;
+  return { target:"edge", orient, x, z, face };
+}
+function exportWallItem(wi){
+  const base = { id:wi.id, color:wi.color, l:wi.level };
+  if(wi.target==="edge") return { ...base, target:"edge", orient:wi.orient, x:wi.x, z:wi.z, face:wi.face };
+  return { ...base, side:wi.side, i:wi.i };
+}
+function restoreWallItemData(d, silent=true){
+  if(d.target==="edge") return addWallItemToEdge(d.id, d.color, d.l, d.orient, d.x, d.z, d.face ?? 1, silent);
+  return addWallItem(d.id, d.color, d.l, d.side, d.i, silent);
+}
+function attachedWallItemsForEdgeItem(rec){
+  if(!rec.edgeWall || !rec.edges) return [];
+  const set = new Set(rec.edges);
+  return wallItems.filter(wi=>wi.target==="edge" && set.has(edgeBaseKey(wi.level, wi.orient, wi.x, wi.z)));
+}
+function attachWallItem(wi){
+  if(wi.group) levelRoots[wi.level].remove(wi.group);
+  const def = WALL_ITEMS.find(w=>w.id===wi.id);
+  const g = buildWallItemMesh(def, wi.color);
+  if(wi.target==="edge"){
+    const t = edgeWallItemTransform(wi.level, wi.orient, wi.x, wi.z, wi.face, def.h);
+    g.rotation.y = t.ry;
+    g.position.copy(t.pos);
+  }else{
+    const t = sideTransform(wi.side, wi.i);
+    g.rotation.y = t.ry;
+    const inward = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), t.ry);
+    g.position.set(t.pos[0], lvlY(wi.level)+def.h, t.pos[2]).addScaledVector(inward, TH/2+0.04);
+    applyFade(g, sideFade[wi.side]);
+  }
+  shadowOn(g);
+  g.userData.wallItem = wi;
+  wi.group = g;
+  levelRoots[wi.level].add(g);
+}
+function addWallItem(id, cid, l, side, i, silent){
+  const def = WALL_ITEMS.find(w=>w.id===id);
+  const k = wk(l,side,i);
+  if(!def || wallItemMap.has(k)) return false;
+  if(coveringSlot(l, side, i)) return false;
+  cid = defColors(def).includes(cid) ? cid : (defColors(def)[0] ?? null);
+  const wi = { id, color:cid, side, i, level:l, target:"wall", group:null };
+  attachWallItem(wi);
+  wallItems.push(wi);
+  wallItemMap.set(wallItemKey(wi), wi);
+  if(!silent){ popIn(wi.group); sparkleAt(wi.group.position.clone(), 0xd9b8ff, 8); sfx("kira"); undoStack.push({a:"addW",wi}); }
+  return true;
+}
+function addWallItemToEdge(id, cid, l, orient, x, z, face, silent){
+  const def = WALL_ITEMS.find(w=>w.id===id);
+  const base = edgeBaseKey(l,orient,x,z);
+  const k = edgeWk(l,orient,x,z,face);
+  if(!def || !edgeOcc.has(base) || wallItemMap.has(k)) return false;
+  cid = defColors(def).includes(cid) ? cid : (defColors(def)[0] ?? null);
+  const wi = { id, color:cid, level:l, target:"edge", orient, x, z, face, group:null };
+  attachWallItem(wi);
+  wallItems.push(wi);
+  wallItemMap.set(wallItemKey(wi), wi);
+  if(!silent){ popIn(wi.group); sparkleAt(wi.group.position.clone(), 0xd9b8ff, 8); sfx("kira"); undoStack.push({a:"addW",wi}); }
+  return true;
+}
+function removeWallItem(wi, silent){
+  const i = wallItems.indexOf(wi); if(i<0) return false;
+  levelRoots[wi.level].remove(wi.group); wallItems.splice(i,1);
+  wallItemMap.delete(wallItemKey(wi));
+  if(!silent){ sfx("poof"); undoStack.push({a:"remW", data:exportWallItem(wi)}); }
+  return true;
+}
+
+/* ---------- フロア切替 ---------- */
+function setActiveLevel(l){
+  activeLevel = l;
+  levelRoots[1].visible = (l===1);
+  document.querySelectorAll(".fl-btn").forEach(b=>b.classList.toggle("on", +b.dataset.lvl===l));
+  camCtl.target.y = lvlY(l) + 1.0;
+  updateCamera();
+  setOutdoorGuidesVisible();
+  clearGhost();
+  toast(l===1 ? "2かいへ！ 🪜" : "1かいへ！ 🏠");
+  sfx("tick");
+}
+document.querySelectorAll(".fl-btn").forEach(b=>{
+  b.onclick = ()=>{ if(+b.dataset.lvl!==activeLevel) setActiveLevel(+b.dataset.lvl); };
+});
+
+/* ---------- 初期のお部屋 ---------- */
+function clearAll(){
+  for(const wi of [...wallItems]) removeWallItem(wi, true);
+  for(const it of [...items]) removeItem(it, true);
+  floorMapL = [{},{}]; outdoorMapL = [{},{}]; wallMapL = [{},{}];
+  edgeOcc.clear();
+  holeSet.clear();
+}
+function furnitureSnapshot(){
+  return {
+    items: items.map(it=>({ id:it.id, size:it.size, color:it.color, l:it.level, x:it.x, z:it.z, rot:it.rot })),
+    wallItems: wallItems.map(exportWallItem)
+  };
+}
+function restoreFurnitureSnapshot(snap){
+  clearGhost();
+  for(const wi of [...wallItems]) removeWallItem(wi, true);
+  for(const it of [...items]) removeItem(it, true);
+  edgeOcc.clear();
+  holeSet.clear();
+  rebuildFloor(1); rebuildOutdoor(0); rebuildOutdoor(1); rebuildOutdoor(0); rebuildOutdoor(1);
+  for(const e of (snap.items || [])) addItem(e.id, e.size, e.color, e.l, e.x, e.z, e.rot, true);
+  for(const e of (snap.wallItems || [])) restoreWallItemData(e, true);
+}
+function clearFurnitureOnly(silent=false){
+  const snap = furnitureSnapshot();
+  const count = snap.items.length + snap.wallItems.length;
+  if(!count){
+    if(!silent) toast("消す家具がないよ 🧹");
+    return false;
+  }
+  clearGhost();
+  for(const wi of [...wallItems]) removeWallItem(wi, true);
+  for(const it of [...items]) removeItem(it, true);
+  edgeOcc.clear();
+  holeSet.clear();
+  rebuildFloor(1);
+  if(!silent){
+    undoStack.push({ a:"clearFurniture", snap });
+    sfx("poof");
+    toast(`${count}個の家具をすべて削除したよ 🧹`);
+  }
+  return true;
+}
+function rebuildAll(){
+  rebuildPedestal();
+  rebuildFloor(0); rebuildFloor(1);
+  rebuildOutdoor(0); rebuildOutdoor(1);
+  rebuildNature();
+  for(const l of [0,1]) for(const s of ["N","S","W","E"]) rebuildWall(l, s);
+  camCtl.target.set(ROOM.w/2, lvlY(activeLevel)+1.0, ROOM.d/2);
+  updateCamera();
+}
+function applyRoomData(data){
+  const w = Math.max(SIZE_LIMIT.wMin, Math.min(SIZE_LIMIT.wMax, data.room.w));
+  const d = Math.max(SIZE_LIMIT.dMin, Math.min(SIZE_LIMIT.dMax, data.room.d));
+  clearAll();
+  ROOM = { w, d };
+  if(data.nature){
+    natureSettings = {
+      preset: NATURE_PRESETS.some(n=>n.id===data.nature.preset) ? data.nature.preset : "soft_forest",
+      seed: Number.isFinite(data.nature.seed) ? data.nature.seed : 42831
+    };
+  }else{
+    natureSettings = { preset:"soft_forest", seed: 42831 };
+  }
+  const lvls = data.levels || [{ floor:data.floor, walls:data.walls, items:data.items, wallItems:data.wallItems }];
+  for(let l=0;l<Math.min(2,lvls.length);l++){
+    for(const e of (lvls[l].floor||[])) if(e.x<w && e.z<d) floorMapL[l][`${e.x},${e.z}`] = e.mat;
+    for(const e of (lvls[l].outdoor||[])) if(outdoorInBand(e.x,e.z)) outdoorMapL[l][`${e.x},${e.z}`] = e.mat;
+    for(const e of (lvls[l].walls||[])) if(e.i<((e.side==="N"||e.side==="S")?w:d))
+      wallMapL[l][`${e.side}:${e.i}`] = { mat:e.mat||"wp_cream", slot:e.slot||null };
+  }
+  rebuildAll();
+  for(let l=0;l<Math.min(2,lvls.length);l++){
+    for(const e of (lvls[l].items||[])) addItem(e.id, e.size, e.color, l, e.x, e.z, e.rot, true);
+    for(const e of (lvls[l].wallItems||[])) restoreWallItemData({...e, l:e.l ?? l}, true);
+  }
+  undoStack.length = 0;
+}
+
+function defaultRoom(){
+  applyRoomData(DEFAULT_ROOM_DATA);
+}
+
+/* ---------- ゴースト / ハイライト ---------- */
+const ghostMat = new THREE.MeshLambertMaterial({ color:0xffffff, transparent:true, opacity:0.45 });
+const ghostBad = new THREE.MeshLambertMaterial({ color:0xff7e79, transparent:true, opacity:0.45 });
+const hlMat    = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.35 });
+const hlBad    = new THREE.MeshBasicMaterial({ color:0xff7e79, transparent:true, opacity:0.32 });
+let ghost = null, ghostInfo = null;
+function clearGhost(){ if(ghost){ scene.remove(ghost); ghost=null; ghostInfo=null; } hideConfirmBar(); }
+function setGhostMaterial(obj, ok){
+  obj.traverse(o=>{ if(o.isMesh){ o.material = ok?ghostMat:ghostBad; o.castShadow=false; o.receiveShadow=false; } });
+}
+
+/* ---------- 状態・UI ---------- */
+let mode = "furn";
+let selFloor = "wood_light", selOutdoor = "deck", selWall = "wp_pink", selSlot = "door_pink";
+let selItem = "bed", selPart = "partition", selWallItem = "clock";
+const selSize = {}, selColor = {};       // アイテムごとに記憶
+let rotSel = 0, soundOn = true;
+
+function curDef(){
+  if(mode==="furn") return ITEMS.find(i=>i.id===selItem);
+  if(mode==="part") return ITEMS.find(i=>i.id===selPart);
+  if(mode==="bal") return isOutdoorItemId(selOutdoor) ? ITEMS.find(i=>i.id===selOutdoor) : null;
+  return WALL_ITEMS.find(i=>i.id===selWallItem);
+}
+function curSid(def){ return selSize[def.id] || defSizes(def)[0].sid; }
+function curCid(def){ return selColor[def.id] || defColors(def)[0] || null; }
+
+const hotbar = document.getElementById("hotbar");
+const variantbar = document.getElementById("variantbar");
+
+function chipHTML(it){
+  if(it.up!==undefined){
+    const u="#"+it.up.toString(16).padStart(6,"0"), l="#"+it.low.toString(16).padStart(6,"0");
+    return `<span class="chip"><i style="background:${u}"></i><i style="background:${l};flex:0 0 10px"></i></span>`;
+  }
+  const c="#"+it.c.toString(16).padStart(6,"0");
+  if(it.c2!==undefined){
+    const c2="#"+it.c2.toString(16).padStart(6,"0");
+    return `<span class="chip" style="background:repeating-conic-gradient(${c} 0 25%,${c2} 0 50%) 0 0/15px 15px"></span>`;
+  }
+  return `<span class="chip" style="background:${c}"></span>`;
+}
+function buildVariantBar(){
+  variantbar.innerHTML = "";
+  if(mode!=="furn" && mode!=="part" && mode!=="wallitem" && !(mode==="bal" && isOutdoorItemId(selOutdoor))) return;
+  const def = curDef();
+  if(!def) return;
+  const sizes = def.sizes || [];
+  const colors = defColors(def);
+  if(!sizes.length && !colors.length) return;
+  if(colors.length){
+    const lb = document.createElement("span"); lb.className="vlabel"; lb.textContent="いろ";
+    variantbar.appendChild(lb);
+    for(const cid of colors){
+      const cs = csOf(cid);
+      const b = document.createElement("button");
+      b.className = "swatch" + (curCid(def)===cid ? " on":"");
+      b.style.background = cs.sw;
+      b.title = cs.name;
+      b.onclick = ()=>{ selColor[def.id]=cid; buildVariantBar(); clearGhost(); sfx("tick"); };
+      variantbar.appendChild(b);
+    }
+  }
+  if(sizes.length){
+    if(colors.length){ const dv=document.createElement("span"); dv.className="vdiv"; variantbar.appendChild(dv); }
+    const lb = document.createElement("span"); lb.className="vlabel"; lb.textContent="サイズ";
+    variantbar.appendChild(lb);
+    for(const s of sizes){
+      const b = document.createElement("button");
+      b.className = "size-pill" + (curSid(def)===s.sid ? " on":"");
+      b.textContent = s.name;
+      b.onclick = ()=>{ selSize[def.id]=s.sid; buildVariantBar(); clearGhost(); sfx("tick"); };
+      variantbar.appendChild(b);
+    }
+  }
+}
+function buildHotbar(){
+  hotbar.innerHTML = "";
+  if(mode==="erase"){
+    hotbar.innerHTML = `<div class="note">🧹 家具・かべかけ・窓ドアをタップでおかたづけ（右クリックでもOK）</div>`;
+    buildVariantBar();
+    return;
+  }
+  const conf = {
+    floor:   { list:FLOORS,     get:()=>selFloor,    set:v=>selFloor=v },
+    bal:     { list:OUTDOOR_TILES.concat(outdoorItemDefs()), get:()=>selOutdoor, set:v=>selOutdoor=v },
+    wall:    { list:WALLPAPERS, get:()=>selWall,     set:v=>selWall=v },
+    slot:    { list:SLOTS,      get:()=>selSlot,     set:v=>selSlot=v },
+    furn:    { list:ITEMS.filter(i=>!i.edgeWall), get:()=>selItem,     set:v=>selItem=v },
+    part:    { list:ITEMS.filter(i=> i.edgeWall), get:()=>selPart,     set:v=>selPart=v },
+    wallitem:{ list:WALL_ITEMS, get:()=>selWallItem, set:v=>selWallItem=v },
+  }[mode];
+  for(const it of conf.list){
+    const b = document.createElement("button");
+    b.className = "item-btn";
+    if(conf.get()===it.id) b.classList.add("on");
+    b.innerHTML = (it.ico ? `<span class="ico">${it.ico}</span>` : chipHTML(it)) + `<span class="nm">${it.name}</span>`;
+    b.onclick = ()=>{ conf.set(it.id); buildHotbar(); clearGhost(); sfx("tick"); };
+    hotbar.appendChild(b);
+  }
+  buildVariantBar();
+}
+buildHotbar();
+
+/* ホイールでホットバーを横スクロール */
+for(const el of [hotbar, variantbar]){
+  el.addEventListener("wheel", e=>{
+    e.preventDefault();
+    el.scrollLeft += (e.deltaY + e.deltaX);
+  }, {passive:false});
+}
+
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.onclick = ()=>{
+    mode = btn.dataset.mode;
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("on", b===btn));
+    document.getElementById("sheet").classList.remove("collapsed");
+    buildHotbar(); setOutdoorGuidesVisible(); clearGhost(); sfx("tick");
+  };
+});
+document.getElementById("sheet-grip").onclick = ()=>{
+  document.getElementById("sheet").classList.toggle("collapsed");
+  sfx("tick");
+};
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove("show"), 1700);
+}
+
+document.getElementById("btn-rot").onclick  = ()=>{
+  rotSel=(rotSel+1)%4; sfx("tick"); toast("くるっ 🔄");
+  if(typeof touchPreview!=="undefined" && touchPreview && ghostInfo && ghostInfo.kind==="item") refreshPendingGhost();
+  else clearGhost();
+};
+document.getElementById("btn-undo").onclick = doUndo;
+document.getElementById("btn-help").onclick = ()=>document.getElementById("help").classList.add("show");
+document.getElementById("btn-help-close").onclick = ()=>document.getElementById("help").classList.remove("show");
+document.getElementById("btn-menu").onclick = ()=>document.getElementById("menu").classList.add("show");
+document.getElementById("btn-menu-close").onclick = ()=>document.getElementById("menu").classList.remove("show");
+document.getElementById("btn-snd").onclick = function(){
+  soundOn=!soundOn;
+  document.getElementById("snd-label").textContent = "サウンド：" + (soundOn?"ON":"OFF");
+};
+document.getElementById("btn-nature-cycle").onclick = ()=>cycleNaturePreset();
+document.getElementById("btn-nature-reroll").onclick = ()=>rerollNature();
+document.getElementById("btn-day").onclick = function(){
+  isDay=!isDay; this.textContent = isDay?"🌞":"🌙";
+  toast(isDay?"おはよう！ 🌞":"おやすみモード 🌙");
+};
+
+/* サイズ変更 */
+let pendW = ROOM.w, pendD = ROOM.d;
+document.getElementById("btn-size").onclick = ()=>{
+  document.getElementById("menu").classList.remove("show");
+  pendW = ROOM.w; pendD = ROOM.d;
+  document.getElementById("size-w").textContent = pendW;
+  document.getElementById("size-d").textContent = pendD;
+  document.getElementById("sizer").classList.add("show");
+};
+document.querySelectorAll(".step-btn").forEach(b=>{
+  b.onclick = ()=>{
+    const d = +b.dataset.d;
+    if(b.dataset.t==="w") pendW = Math.max(SIZE_LIMIT.wMin, Math.min(SIZE_LIMIT.wMax, pendW+d));
+    else                  pendD = Math.max(SIZE_LIMIT.dMin, Math.min(SIZE_LIMIT.dMax, pendD+d));
+    document.getElementById("size-w").textContent = pendW;
+    document.getElementById("size-d").textContent = pendD;
+    sfx("tick");
+  };
+});
+document.getElementById("btn-size-apply").onclick = ()=>{
+  document.getElementById("sizer").classList.remove("show");
+  if(pendW===ROOM.w && pendD===ROOM.d) return;
+  resizeRoom(pendW, pendD);
+};
+function resizeRoom(w, d){
+  ROOM = { w, d };
+  for(const l of [0,1]){
+    for(const k of Object.keys(outdoorMapL[l])){
+      const [x,z] = k.split(",").map(Number);
+      if(!outdoorInBand(x,z)) delete outdoorMapL[l][k];
+    }
+  }
+  for(const it of [...items]){
+    const def = ITEMS.find(f=>f.id===it.id);
+    if(isEdgeWall(def)){
+      if(!edgeWallInBounds(def, it.size, it.x, it.z, it.rot)) removeItem(it, true);
+    }else{
+      const ic = itemCells(def, it.size, it.x, it.z, it.rot);
+      if(ic.cells.some(([cx,cz])=> !isValidFloorCell(it.level,cx,cz))) removeItem(it, true);
+    }
+  }
+  for(const wi of [...wallItems]){
+    if(wi.i >= sideLen(wi.side)) removeWallItem(wi, true);
+  }
+  for(const l of [0,1]) for(const s of ["N","S","W","E"])
+    for(let i=sideLen(s); i<99; i++){ if(wallMapL[l][`${s}:${i}`]) delete wallMapL[l][`${s}:${i}`]; }
+  recomputeHoles();
+  undoStack.length = 0;
+  rebuildAll();
+  frameRoom();
+  toast(`${w}×${d} のおへやになったよ 📐`);
+  sfx("kira");
+}
+
+function doUndo(){
+  const u = undoStack.pop();
+  if(!u){ toast("もどすものがないよ"); return; }
+  if(u.a==="floor") paintFloor(u.l, u.x, u.z, u.prev, true);
+  else if(u.a==="wmat") paintWall(u.l, u.side, u.i, u.prev, true);
+  else if(u.a==="slot") setSlot(u.l, u.side, u.i, u.prev||"_clear", true);
+  else if(u.a==="outdoor") setOutdoorTile(u.l, u.x, u.z, u.prev || "_clear", true);
+  else if(u.a==="addI") removeItem(u.rec, true);
+  else if(u.a==="remI"){
+    const d=u.data;
+    addItem(d.id,d.size,d.color,d.l,d.x,d.z,d.rot,true);
+    for(const w of (u.attached || [])) restoreWallItemData(w, true);
+  }
+  else if(u.a==="addW") removeWallItem(u.wi, true);
+  else if(u.a==="remW") restoreWallItemData(u.data, true);
+  else if(u.a==="clearFurniture") restoreFurnitureSnapshot(u.snap);
+  sfx("poof"); toast("もどしたよ ↩️");
+}
+
+/* ---------- セーブ / ロード / カタログ ---------- */
+function exportRoomJSON(){
+  const levels = [];
+  for(const l of [0,1]){
+    const floor = [];
+    for(let x=0;x<ROOM.w;x++) for(let z=0;z<ROOM.d;z++)
+      floor.push({ x, z, mat: floorMapL[l][`${x},${z}`] || "wood_light" });
+    const walls = [];
+    for(const s of ["N","S","W","E"]) for(let i=0;i<sideLen(s);i++){
+      const d = wallMapL[l][`${s}:${i}`] || { mat:"wp_cream", slot:null };
+      const e = { side:s, i, mat:d.mat };
+      if(d.slot) e.slot = d.slot;
+      walls.push(e);
+    }
+    const outdoor = Object.entries(outdoorMapL[l]).map(([k,mat])=>{ const [x,z]=k.split(",").map(Number); return { x, z, mat }; });
+    levels.push({
+      floor, outdoor, walls,
+      items: items.filter(it=>it.level===l).map(it=>({
+        id:it.id, size:it.size, color:it.color, x:it.x, z:it.z, rot:it.rot,
+        layer: it.edgeWall?"wall":(it.noOcc?"rug":"floor"), edgeWall:!!it.edgeWall
+      })),
+      wallItems: wallItems.filter(w=>w.level===l).map(exportWallItem),
+    });
+  }
+  return {
+    version: 2,
+    catalogVersion: CATALOG_VERSION,
+    grid: { cell:GRID.cell, wallHeight:GRID.wallHeight, levelHeight:LV_H, levels:LEVELS },
+    room: { w:ROOM.w, d:ROOM.d },
+    rooms: [],
+    levels,
+    holes: [...holeSet].map(k=>{ const [x,z]=k.split(",").map(Number); return {x,z}; }),
+    palette: PALETTE,
+    nature: { ...natureSettings },
+  };
+}
+function download(name, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+document.getElementById("btn-save").onclick = ()=>{
+  download("room.json", exportRoomJSON());
+  document.getElementById("menu").classList.remove("show");
+  toast("room.json を保存したよ 💾");
+};
+function puniConfirm(message, onYes){
+  // window.confirm はアプリ内ブラウザでブロックされることがあるので自前ダイアログを使う
+  let ov = document.getElementById("puni-confirm");
+  if(!ov){
+    ov = document.createElement("div");
+    ov.className = "overlay";
+    ov.id = "puni-confirm";
+    ov.innerHTML = `<div class="panel" style="text-align:center">
+      <h2>🧹 かくにん</h2>
+      <div id="puni-confirm-msg" style="line-height:1.9"></div>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:16px">
+        <button class="ok-btn" id="puni-confirm-no"
+          style="margin:0;background:#cfc4b8;box-shadow:0 4px 0 #b3a596;">やめる</button>
+        <button class="ok-btn" id="puni-confirm-yes" style="margin:0">けす！</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+  }
+  document.getElementById("puni-confirm-msg").innerHTML = message;
+  ov.classList.add("show");
+  document.getElementById("puni-confirm-no").onclick = ()=>{ ov.classList.remove("show"); };
+  document.getElementById("puni-confirm-yes").onclick = ()=>{ ov.classList.remove("show"); onYes(); };
+}
+document.getElementById("btn-clear-furniture").onclick = ()=>{
+  const count = items.length + wallItems.length;
+  if(!count){ toast("消す家具がないよ 🧹"); return; }
+  puniConfirm("配置した家具・かべかけ・しきりかべ・階段を<br>すべて削除します。<br><b>床・壁紙・窓・ドアは残ります。</b>", ()=>{
+    clearFurnitureOnly(false);
+    document.getElementById("menu").classList.remove("show");
+    toast("家具をおかたづけしたよ 🧹");
+  });
+};
+
+document.getElementById("btn-cat").onclick = ()=>{
+  download("catalog.json", {
+    catalogVersion: CATALOG_VERSION,
+    grid: { ...GRID, levelHeight:LV_H, maxLevels:LEVELS },
+    palette: PALETTE,
+    colorSets: Object.fromEntries(Object.entries(CSET).filter(([,v])=>v.main!==undefined)
+      .map(([k,v])=>[k,{ name:v.name, main:v.main, lite:v.lite, deep:v.deep }])),
+    floors: FLOORS.map(f=>({ id:f.id, name:f.name, color:f.c, color2:f.c2 ?? null })),
+    outdoorTiles: OUTDOOR_TILES.filter(t=>!t.clear).map(t=>({ id:t.id, name:t.name, color:t.c, color2:t.c2 ?? null })),
+    naturePresets: NATURE_PRESETS.map(n=>({ id:n.id, name:n.name, hill:n.hill, treeDensity:n.treeDensity, rockDensity:n.rockDensity, grassDensity:n.grassDensity })),
+    wallpapers: WALLPAPERS.map(w=>({ id:w.id, name:w.name, upper:w.up, lower:w.low })),
+    slots: SLOTS.filter(s=>s.kind!=="clear").map(s=>({ id:s.id, name:s.name, kind:s.kind, accent:s.accent ?? null, span:s.span ?? 1 })),
+    items: ITEMS.map(i=>({
+      id:i.id, name:i.name, layer:i.layer, sit:!!i.sit, stairs:!!i.stairs, edgeWall:!!i.edgeWall, outdoorOnly:!!i.outdoorOnly, partitionKind:i.partitionKind||null,
+      sizes: defSizes(i).map(s=>({ sid:s.sid, name:s.name, w:s.w, d:s.d })),
+      colors: defColors(i),
+    })),
+    wallItems: WALL_ITEMS.map(w=>({ id:w.id, name:w.name, height:w.h, colors:defColors(w) })),
+  });
+  document.getElementById("menu").classList.remove("show");
+  toast("catalog.json（Unity用）を書き出したよ 📦");
+};
+document.getElementById("btn-load").onclick = ()=>document.getElementById("file-in").click();
+document.getElementById("file-in").onchange = function(){
+  const f = this.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      applyRoomData(data);
+      setActiveLevel(0);
+      frameRoom();
+      toast("ロードしたよ 📂");
+    }catch(err){ toast("読みこめなかった…ファイルを確認してね"); }
+  };
+  r.readAsText(f);
+  this.value = "";
+};
+
+/* ---------- カメラ ---------- */
+const camCtl = { target:new THREE.Vector3(4,1.0,3), theta:Math.PI*0.25, phi:Math.PI*0.34, dist:13 };
+function updateCamera(){
+  if(typeof clampCameraTarget === "function") clampCameraTarget();
+  camCtl.phi  = Math.max(0.1, Math.min(Math.PI*0.47, camCtl.phi));
+  camCtl.dist = Math.max(6.5, Math.min(36, camCtl.dist));
+  const sp = Math.sin(camCtl.phi), cp = Math.cos(camCtl.phi);
+  camera.position.set(
+    camCtl.target.x + camCtl.dist*sp*Math.sin(camCtl.theta),
+    camCtl.target.y + camCtl.dist*cp,
+    camCtl.target.z + camCtl.dist*sp*Math.cos(camCtl.theta),
+  );
+  camera.lookAt(camCtl.target);
+}
+
+/* ---------- 手前の壁フェード ---------- */
+function wallShouldHide(side){
+  const p = camera.position;
+  if(side==="N") return p.z < 0;
+  if(side==="S") return p.z > ROOM.d;
+  if(side==="W") return p.x < 0;
+  return p.x > ROOM.w;
+}
+function applyFade(group, f){
+  group.traverse(o=>{
+    if(o.isMesh){
+      if(o.userData._baseOpacity===undefined) o.userData._baseOpacity = o.material.opacity ?? 1;
+      o.material.transparent = true;
+      o.material.opacity = o.userData._baseOpacity * f;
+      o.visible = f > 0.04;
+      o.castShadow = f > 0.5;
+    }
+    if(o.isPointLight) o.userData._fade = f;
+  });
+}
+function updateWallFades(dt){
+  for(const s of ["N","S","W","E"]){
+    const target = wallShouldHide(s) ? 0 : 1;
+    const cur = sideFade[s];
+    const next = cur + (target-cur)*Math.min(1, dt*7);
+    if(Math.abs(next-cur) > 0.002){
+      sideFade[s] = next;
+      for(const l of [0,1]){
+        if(wallGroupsL[l][s]) applyFade(wallGroupsL[l][s], next);
+      }
+      for(const wi of wallItems) if(wi.side===s && wi.group) applyFade(wi.group, next);
+    }
+  }
+}
+
+/* ---------- 入力 ---------- */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let dragging=false, dragBtn=0, lastX=0, lastY=0, downX=0, downY=0, moved=false;
+let pinchDist=0, twoFinger=false;
+
+function setPointer(cx, cy){
+  const r = canvas.getBoundingClientRect();
+  pointer.x = ((cx-r.left)/r.width)*2-1;
+  pointer.y = -((cy-r.top)/r.height)*2+1;
+}
+function visibleWallSegs(){
+  const arr = [];
+  for(const s of ["N","S","W","E"]){
+    if(sideFade[s] < 0.5) continue;
+    const G = wallGroupsL[activeLevel][s];
+    if(!G) continue;
+    for(const c of G.children) if(c.userData.seg) arr.push(c);
+  }
+  return arr;
+}
+function visibleEdgeWallGroups(){
+  return items.filter(i=>i.level===activeLevel && i.edgeWall).map(i=>i.group);
+}
+function outdoorPickMeshes(l, includeGuides=false){
+  const arr = [...outdoorTilesL[l].values()];
+  if(includeGuides && outdoorGuideGroups[l]) arr.push(...outdoorGuideGroups[l].children);
+  return arr;
+}
+function pickTargets(){
+  if(mode==="bal") return outdoorPickMeshes(activeLevel, true);
+  if(mode==="floor") return [...floorTilesL[activeLevel].values()];
+  if(mode==="furn") return [...floorTilesL[activeLevel].values()].concat(outdoorPickMeshes(activeLevel));
+  if(mode==="part") return [...floorTilesL[activeLevel].values()];
+  if(mode==="wall" || mode==="slot") return visibleWallSegs();
+  if(mode==="wallitem") return visibleWallSegs().concat(visibleEdgeWallGroups());
+  const arr = items.filter(i=>i.level===activeLevel).map(i=>i.group)
+    .concat(wallItems.filter(w=>w.level===activeLevel && (w.target==="edge" || sideFade[w.side]>=0.5)).map(w=>w.group));
+  return arr.concat(visibleWallSegs());
+}
+function raycast(){
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickTargets(), true);
+  return hits[0] || null;
+}
+function climb(obj, key){
+  let o = obj;
+  while(o && !(o.userData && o.userData[key])) o = o.parent;
+  return o ? o.userData[key] : null;
+}
+
+function updateGhost(){
+  const hit = raycast();
+  if(!hit){ clearGhost(); return; }
+
+  if(mode==="floor"){
+    const cell = climb(hit.object, "cell");
+    if(!cell || cell.outdoor){ clearGhost(); return; }
+    if(!ghost || ghostInfo.kind!=="cellhl"){
+      clearGhost();
+      ghost = new THREE.Mesh(new THREE.BoxGeometry(1.02,0.16,1.02), hlMat);
+      scene.add(ghost);
+      ghostInfo = { kind:"cellhl" };
+    }
+    ghost.position.set(cell.x+0.5, lvlY(activeLevel)+0.02, cell.z+0.5);
+    Object.assign(ghostInfo, cell);
+
+  }else if(mode==="bal"){
+    const cell = climb(hit.object, "cell");
+    if(!cell || !cell.outdoor){ clearGhost(); return; }
+    if(isOutdoorItemId(selOutdoor)){
+      placeItemGhost(cell, hit.point);
+      return;
+    }
+    const ok = selOutdoor==="_clear" ? !!outdoorMapL[activeLevel][okKey(cell.x,cell.z)] : outdoorInBand(cell.x,cell.z);
+    if(!ghost || ghostInfo.kind!=="balhl"){
+      clearGhost();
+      ghost = new THREE.Mesh(new THREE.BoxGeometry(1.02,0.16,1.02), hlMat);
+      scene.add(ghost);
+      ghostInfo = { kind:"balhl" };
+    }
+    ghost.material = ok ? hlMat : hlBad;
+    ghost.position.set(cell.x+0.5, lvlY(activeLevel)+0.02, cell.z+0.5);
+    Object.assign(ghostInfo, { kind:"balhl", x:cell.x, z:cell.z, ok });
+
+  }else if(mode==="wall" || mode==="slot" || mode==="wallitem"){
+    const seg = climb(hit.object, "seg");
+    const edgeRec = climb(hit.object, "item");
+
+    if(mode==="wallitem"){
+      const def = WALL_ITEMS.find(w=>w.id===selWallItem);
+      const cid = curCid(def);
+      let ok = false;
+      let place = null;
+      if(edgeRec && edgeRec.edgeWall){
+        const tEdge = edgeTargetFromHit(edgeRec, hit.point);
+        const k = edgeWk(activeLevel, tEdge.orient, tEdge.x, tEdge.z, tEdge.face);
+        ok = edgeOcc.has(edgeBaseKey(activeLevel, tEdge.orient, tEdge.x, tEdge.z)) && !wallItemMap.has(k);
+        const tr = edgeWallItemTransform(activeLevel, tEdge.orient, tEdge.x, tEdge.z, tEdge.face, def.h);
+        place = { ...tEdge, pos:tr.pos, ry:tr.ry };
+      }else if(seg){
+        ok = !wallItemMap.has(wk(activeLevel,seg.side,seg.i)) && !coveringSlot(activeLevel,seg.side,seg.i);
+        const t = sideTransform(seg.side, seg.i);
+        const inward = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), t.ry);
+        const pos = new THREE.Vector3(t.pos[0], lvlY(activeLevel)+def.h, t.pos[2]).addScaledVector(inward, TH/2+0.04);
+        place = { target:"wall", side:seg.side, i:seg.i, pos, ry:t.ry };
+      }else{
+        clearGhost(); return;
+      }
+      if(!ghost || ghostInfo.kind!=="witem" || ghostInfo.id!==selWallItem || ghostInfo.cid!==cid){
+        clearGhost();
+        ghost = buildWallItemMesh(def, cid);
+        scene.add(ghost);
+        ghostInfo = { kind:"witem", id:selWallItem, cid };
+      }
+      ghost.rotation.y = place.ry;
+      ghost.position.copy(place.pos);
+      setGhostMaterial(ghost, ok);
+      Object.assign(ghostInfo, place, { ok });
+    }else{
+      if(!seg){ clearGhost(); return; }
+      // 壁ぬり: そのセグメントの幅 / 建具: 選択スロットの幅
+      const span = mode==="slot" ? slotSpan(selSlot) : (seg.span || 1);
+      let base = seg.i;
+      if(mode==="slot") base = Math.min(seg.i, sideLen(seg.side) - span);
+      const okS = mode!=="slot" ? true
+        : selSlot==="_clear" ? !!coveringSlot(activeLevel, seg.side, seg.i)
+        : canPlaceSlot(activeLevel, seg.side, base, selSlot);
+      if(!ghost || ghostInfo.kind!=="seghl" || ghostInfo.span!==span){
+        clearGhost();
+        ghost = new THREE.Mesh(new THREE.BoxGeometry(span+0.04, H+0.06, TH+0.1), hlMat);
+        scene.add(ghost);
+        ghostInfo = { kind:"seghl", span };
+      }
+      ghost.material = okS ? hlMat : hlBad;
+      const t = sideTransform(seg.side, base);
+      ghost.rotation.y = t.ry;
+      if(seg.side==="N"||seg.side==="S")
+        ghost.position.set(base + span/2, lvlY(activeLevel)+H/2, t.pos[2]);
+      else
+        ghost.position.set(t.pos[0], lvlY(activeLevel)+H/2, base + span/2);
+      Object.assign(ghostInfo, { side:seg.side, i: mode==="slot" ? (selSlot==="_clear" ? seg.i : base) : seg.i, ok:okS });
+    }
+
+  }else if(mode==="furn" || mode==="part"){
+    const cell = climb(hit.object, "cell");
+    if(!cell){ clearGhost(); return; }
+    placeItemGhost(cell, hit.point);
+
+  }else{
+    clearGhost();
+  }
+}
+
+/* 家具・しきりのゴースト配置（タップセル＋ワールド点から計算）。
+   仮置き中の回転リフレッシュでも同じ計算を使う。 */
+function placeItemGhost(cell, point){
+  const itemId = mode==="part" ? selPart : (mode==="bal" ? selOutdoor : selItem);
+  const def = ITEMS.find(f=>f.id===itemId);
+  const sid = curSid(def), cid = curCid(def);
+  const edgeWall = isEdgeWall(def);
+  let px, pz, gx, gz, ok;
+  if(edgeWall){
+    const place = edgeWallFromPoint(def, sid, point, rotSel);
+    px = place.x; pz = place.z; gx = place.cx; gz = place.cz;
+    ok = canPlaceItem(def, sid, activeLevel, px, pz, rotSel);
+  }else{
+    const { w, d } = itemCells(def, sid, 0, 0, rotSel);
+    if(cell.outdoor){
+      px = cell.x - Math.floor((w-1)/2);
+      pz = cell.z - Math.floor((d-1)/2);
+    }else{
+      px = Math.min(Math.max(cell.x - Math.floor((w-1)/2), 0), ROOM.w - w);
+      pz = Math.min(Math.max(cell.z - Math.floor((d-1)/2), 0), ROOM.d - d);
+    }
+    gx = px + w/2; gz = pz + d/2;
+    ok = canPlaceItem(def, sid, activeLevel, px, pz, rotSel);
+  }
+  if(!ghost || ghostInfo.kind!=="item" || ghostInfo.id!==itemId || ghostInfo.rot!==rotSel
+     || ghostInfo.sid!==sid || ghostInfo.cid!==cid){
+    clearGhost();
+    ghost = buildItemMesh(def, sid, cid);
+    ghost.rotation.y = -rotSel*Math.PI/2;
+    scene.add(ghost);
+    ghostInfo = { kind:"item", id:itemId, rot:rotSel, sid, cid, edgeWall };
+  }
+  setGhostMaterial(ghost, ok);
+  ghost.position.set(gx, lvlY(activeLevel), gz);
+  Object.assign(ghostInfo, { x:px, z:pz, ok, edgeWall,
+    _cell:{ x:cell.x, z:cell.z, outdoor:cell.outdoor },
+    _pt: point ? point.clone() : null });
+}
+
+function doAction(){
+  const hit = raycast();
+  if(!hit) return;
+
+  if(mode==="erase"){
+    const it = climb(hit.object, "item");
+    if(it){ removeItem(it); sparkleAt(it.group.position.clone().add(new THREE.Vector3(0,0.4,0)), 0xcccccc, 6); return; }
+    const wi = climb(hit.object, "wallItem");
+    if(wi){ removeWallItem(wi); return; }
+    const seg = climb(hit.object, "seg");
+    if(seg && coveringSlot(activeLevel, seg.side, seg.i)){
+      setSlot(activeLevel, seg.side, seg.i, "_clear"); toast("かべに戻したよ 🔙");
+      return;
+    }
+    const cell = climb(hit.object, "cell");
+    if(cell && cell.outdoor && outdoorMapL[activeLevel][okKey(cell.x,cell.z)]){
+      setOutdoorTile(activeLevel, cell.x, cell.z, "_clear");
+      return;
+    }
+    return;
+  }
+  if(mode==="floor"){
+    if(ghostInfo && ghostInfo.kind==="cellhl") paintFloor(activeLevel, ghostInfo.x, ghostInfo.z, selFloor);
+    return;
+  }
+  if(mode==="bal"){
+    if(isOutdoorItemId(selOutdoor)){
+      if(!ghostInfo || ghostInfo.kind!=="item" || !ghostInfo.ok){ sfx("nope"); toast("外床の上に置いてね 🌿"); return; }
+      const def = ITEMS.find(f=>f.id===selOutdoor);
+      addItem(selOutdoor, curSid(def), curCid(def), activeLevel, ghostInfo.x, ghostInfo.z, rotSel);
+      return;
+    }
+    if(ghostInfo && ghostInfo.kind==="balhl" && ghostInfo.ok) setOutdoorTile(activeLevel, ghostInfo.x, ghostInfo.z, selOutdoor);
+    else { sfx("nope"); }
+    return;
+  }
+  if(mode==="wall"){
+    if(ghostInfo && ghostInfo.kind==="seghl") paintWall(activeLevel, ghostInfo.side, ghostInfo.i, selWall);
+    return;
+  }
+  if(mode==="slot"){
+    if(ghostInfo && ghostInfo.kind==="seghl") setSlot(activeLevel, ghostInfo.side, ghostInfo.i, selSlot);
+    return;
+  }
+  if(mode==="wallitem"){
+    if(ghostInfo && ghostInfo.kind==="witem"){
+      if(!ghostInfo.ok){ sfx("nope"); toast("そこにはかけられないよ"); return; }
+      const def = WALL_ITEMS.find(w=>w.id===selWallItem);
+      if(ghostInfo.target==="edge") addWallItemToEdge(selWallItem, curCid(def), activeLevel, ghostInfo.orient, ghostInfo.x, ghostInfo.z, ghostInfo.face);
+      else addWallItem(selWallItem, curCid(def), activeLevel, ghostInfo.side, ghostInfo.i);
+    }
+    return;
+  }
+  if(mode==="furn" || mode==="part"){
+    if(!ghostInfo || ghostInfo.kind!=="item" || !ghostInfo.ok){ sfx("nope"); return; }
+    const itemId = mode==="part" ? selPart : selItem;
+    const def = ITEMS.find(f=>f.id===itemId);
+    addItem(itemId, curSid(def), curCid(def), activeLevel, ghostInfo.x, ghostInfo.z, rotSel);
+  }
+}
+
+/* ---------- スマホ2段階配置（タップ＝仮置き → ✅で決定） ---------- */
+let touchPreview = false;
+const confirmBar = document.getElementById("confirm-bar");
+function previewModes(){ return mode==="furn" || mode==="part" || mode==="wallitem" || mode==="slot" || (mode==="bal" && isOutdoorItemId(selOutdoor)); }
+function showConfirmBar(){
+  touchPreview = true;
+  // しきり・家具のときだけ回転ボタンを表示
+  document.getElementById("btn-confirm-rot").style.display =
+    (mode==="furn" || mode==="part" || (mode==="bal" && isOutdoorItemId(selOutdoor))) ? "grid" : "none";
+  confirmBar.style.bottom = ((sheetEl ? sheetEl.offsetHeight : 200) + 16) + "px";
+  confirmBar.classList.add("show");
+}
+function hideConfirmBar(){
+  touchPreview = false;
+  if(confirmBar) confirmBar.classList.remove("show");
+}
+function refreshPendingGhost(){
+  if(ghostInfo && ghostInfo.kind==="item" && ghostInfo._cell)
+    placeItemGhost(ghostInfo._cell, ghostInfo._pt);
+}
+function commitPending(){
+  if(!ghostInfo){ hideConfirmBar(); return; }
+  if((mode==="furn" || mode==="part" || (mode==="bal" && isOutdoorItemId(selOutdoor))) && ghostInfo.kind==="item"){
+    if(!ghostInfo.ok){ sfx("nope"); toast(mode==="bal" ? "外床の上に置いてね 🌿" : "そこには置けないよ"); return; }
+    const itemId = mode==="part" ? selPart : (mode==="bal" ? selOutdoor : selItem);
+    const def = ITEMS.find(f=>f.id===itemId);
+    addItem(itemId, curSid(def), curCid(def), activeLevel, ghostInfo.x, ghostInfo.z, rotSel);
+  }else if(mode==="wallitem" && ghostInfo.kind==="witem"){
+    if(!ghostInfo.ok){ sfx("nope"); toast("そこにはかけられないよ"); return; }
+    const def = WALL_ITEMS.find(w=>w.id===selWallItem);
+    if(ghostInfo.target==="edge") addWallItemToEdge(selWallItem, curCid(def), activeLevel, ghostInfo.orient, ghostInfo.x, ghostInfo.z, ghostInfo.face);
+    else addWallItem(selWallItem, curCid(def), activeLevel, ghostInfo.side, ghostInfo.i);
+  }else if(mode==="slot" && ghostInfo.kind==="seghl"){
+    setSlot(activeLevel, ghostInfo.side, ghostInfo.i, selSlot);
+  }
+  clearGhost();   // バーもここで隠れる
+}
+document.getElementById("btn-confirm-ok").onclick = commitPending;
+document.getElementById("btn-confirm-no").onclick = ()=>{ clearGhost(); sfx("poof"); };
+document.getElementById("btn-confirm-rot").onclick = ()=>{
+  rotSel = (rotSel+1)%4; sfx("tick"); refreshPendingGhost();
+};
+
+/* ---------- 回転ピボット: さわった場所のモデルを中心に回す ---------- */
+function setOrbitPivotFrom(clientX, clientY){
+  setPointer(clientX, clientY);
+  raycaster.setFromCamera(pointer, camera);
+  const targets = [...floorTilesL[activeLevel].values()]
+    .concat(items.filter(i=>i.level===activeLevel).map(i=>i.group))
+    .concat(visibleWallSegs());
+  const hits = raycaster.intersectObjects(targets, true);
+  if(!hits.length) return;                       // 空をさわったら今の中心のまま
+  const p = hits[0].point;
+  const camPos = camera.position.clone();
+  camCtl.target.set(p.x, Math.max(0, Math.min(LV_H + H, p.y)), p.z);
+  // カメラ位置はそのまま、注視点だけ差し替える（視点が飛ばないよう球面座標を再計算）
+  const off = camPos.sub(camCtl.target);
+  camCtl.dist = Math.max(6.5, Math.min(36, off.length()));
+  camCtl.phi = Math.acos(Math.max(-1, Math.min(1, off.y / Math.max(0.001, off.length()))));
+  camCtl.theta = Math.atan2(off.x, off.z);
+  updateCamera();
+}
+
+/* マウス */
+canvas.addEventListener("contextmenu", e=>e.preventDefault());
+canvas.addEventListener("pointerdown", e=>{
+  if(e.pointerType==="touch") return;
+  if(e.button===1) e.preventDefault();          // 中ボタンのオートスクロール防止
+  if(e.button===0) setOrbitPivotFrom(e.clientX, e.clientY);  // 回転の中心＝さわった場所
+  dragging=true; dragBtn=e.button; moved=false;
+  lastX=downX=e.clientX; lastY=downY=e.clientY;
+});
+canvas.addEventListener("pointermove", e=>{
+  if(e.pointerType==="touch") return;
+  setPointer(e.clientX, e.clientY);
+  if(dragging){
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    if(Math.abs(e.clientX-downX)+Math.abs(e.clientY-downY)>6) moved=true;
+    if(moved){
+      if(dragBtn===1){                          // 中ボタン: 画面の左右＋上下へスライド
+        const k = camCtl.dist * 0.0011;
+        panCamera(dx*k, dy*k);
+      }else{                                    // 左/右: 回転
+        camCtl.theta -= dx*0.006;
+        camCtl.phi   -= dy*0.005;
+      }
+      updateCamera();
+      clearGhost();
+    }
+    lastX=e.clientX; lastY=e.clientY;
+  }else{
+    updateGhost();
+  }
+});
+canvas.addEventListener("pointerup", e=>{
+  if(e.pointerType==="touch") return;
+  if(dragging && !moved){
+    setPointer(e.clientX, e.clientY);
+    updateGhost();
+    if(dragBtn===2 && mode!=="erase"){
+      const m = mode; mode = "erase"; doAction(); mode = m;
+    }else{
+      doAction();
+    }
+  }
+  dragging=false;
+  updateGhost();
+});
+canvas.addEventListener("wheel", e=>{
+  e.preventDefault();
+  // ホイール/トラックパッドは細かいイベントが連続するので、
+  // delta量ベースのなめらかなズームにして急に飛ばないようにする。
+  const delta = Math.max(-120, Math.min(120, e.deltaY));
+  camCtl.dist *= Math.exp(delta * 0.0009);
+  updateCamera();
+},{passive:false});
+
+/* タッチ */
+const touches = new Map();
+canvas.addEventListener("touchstart", e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches) touches.set(t.identifier, {x:t.clientX, y:t.clientY, sx:t.clientX, sy:t.clientY});
+  if(touches.size===1){
+    const t0 = e.changedTouches[0];
+    setOrbitPivotFrom(t0.clientX, t0.clientY);   // 回転の中心＝さわった場所
+  }
+  if(touches.size===2){
+    twoFinger=true;
+    const [a,b]=[...touches.values()];
+    pinchDist=Math.hypot(a.x-b.x,a.y-b.y);
+  }
+},{passive:false});
+canvas.addEventListener("touchmove", e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    const rec=touches.get(t.identifier); if(!rec) continue;
+    rec.dx=t.clientX-rec.x; rec.dy=t.clientY-rec.y;
+    rec.x=t.clientX; rec.y=t.clientY;
+  }
+  const arr=[...touches.values()];
+  if(arr.length===1 && !twoFinger){
+    const a=arr[0];
+    camCtl.theta -= (a.dx||0)*0.006;
+    camCtl.phi   -= (a.dy||0)*0.005;
+    updateCamera();
+  }else if(arr.length===2){
+    const [a,b]=arr;
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinchDist>0){
+      const ratio = pinchDist/d;
+      if(Math.abs(ratio-1) > 0.005) camCtl.dist *= ratio;   // ピンチ＝ズーム
+    }
+    pinchDist=d;
+    // 2本指ドラッグ＝画面の左右＋上下へスライド
+    const mx=((a.dx||0)+(b.dx||0))/2, my=((a.dy||0)+(b.dy||0))/2;
+    const kp = camCtl.dist * 0.0014;
+    panCamera(mx*kp, my*kp);
+    updateCamera();
+  }
+},{passive:false});
+canvas.addEventListener("touchend", e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    const rec=touches.get(t.identifier);
+    touches.delete(t.identifier);
+    if(rec && touches.size===0 && !twoFinger){
+      const dist=Math.hypot(t.clientX-rec.sx, t.clientY-rec.sy);
+      if(dist<10){
+        setPointer(t.clientX, t.clientY);
+        updateGhost();
+        if(previewModes() && ghostInfo){
+          // 仮置き: ゴーストを残して ✅/🔄/✖️ バーを表示（再タップで移動できる）
+          showConfirmBar();
+          sfx("tick");
+        }else{
+          doAction();
+          clearGhost();
+        }
+      }
+    }
+  }
+  if(touches.size===0) twoFinger=false;
+},{passive:false});
+
+function cameraHomeTarget(l=activeLevel){
+  return new THREE.Vector3(ROOM.w/2, lvlY(l)+1.0, ROOM.d/2);
+}
+function clampCameraTarget(){
+  // 部屋＋ベランダぜんぶを見渡せる、ゆったりした制限にする。
+  const home = cameraHomeTarget(activeLevel);
+  const xzLimit = Math.max(ROOM.w, ROOM.d) / 2 + 2.0;
+  camCtl.target.x = Math.max(home.x - xzLimit, Math.min(home.x + xzLimit, camCtl.target.x));
+  camCtl.target.z = Math.max(home.z - xzLimit, Math.min(home.z + xzLimit, camCtl.target.z));
+  camCtl.target.y = Math.max(-1.2, Math.min(LV_H + H + 1.0, camCtl.target.y));
+}
+function panCamera(dx, dy){
+  // 画面上の左右ドラッグはカメラから見た左右へ、上下ドラッグはワールドY方向へ。
+  // ただし中心から大きく外れないように clampCameraTarget() で丸める。
+  const fwd = new THREE.Vector3().subVectors(camCtl.target, camera.position); fwd.y=0; fwd.normalize();
+  const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
+  camCtl.target.addScaledVector(right, dx);
+  camCtl.target.y += dy;
+  clampCameraTarget();
+}
+
+addEventListener("keydown", e=>{
+  const k=e.key.toLowerCase();
+  if(k==="r"){ document.getElementById("btn-rot").click(); }
+  else if(k==="z"){ doUndo(); }
+  else if(k==="w"||k==="arrowup")    { panCamera(0,-0.22); updateCamera(); }
+  else if(k==="s"||k==="arrowdown")  { panCamera(0, 0.22); updateCamera(); }
+  else if(k==="a"||k==="arrowleft")  { panCamera(-0.22,0); updateCamera(); }
+  else if(k==="d"||k==="arrowright") { panCamera( 0.22,0); updateCamera(); }
+  else if(k==="f"){ setActiveLevel(activeLevel===0?1:0); }
+  else if(k>="1" && k<="6"){
+    const tabs = document.querySelectorAll(".tab-btn");
+    if(tabs[+k-1]) tabs[+k-1].click();
+  }
+});
+
+/* ---------- 演出 ---------- */
+const tweens = [];
+function popIn(obj){
+  obj.scale.set(0.05,0.05,0.05);
+  tweens.push({obj, t:0, dur:0.38});
+}
+function easeOutBack(t){ const c=1.7; return 1 + (c+1)*Math.pow(t-1,3) + c*Math.pow(t-1,2); }
+
+const particles = [];
+const partGeo = new THREE.SphereGeometry(0.06, 6, 5);
+function sparkleAt(pos, color, n){
+  for(let i=0;i<n;i++){
+    const m = new THREE.Mesh(partGeo, new THREE.MeshBasicMaterial({
+      color: i%2 ? 0xffe27d : color, transparent:true
+    }));
+    m.position.copy(pos);
+    m.userData.v = new THREE.Vector3((Math.random()-0.5)*2.0, 1.4+Math.random()*1.8, (Math.random()-0.5)*2.0);
+    m.userData.life = 1;
+    scene.add(m); particles.push(m);
+  }
+}
+
+/* ---------- サウンド ---------- */
+let actx=null;
+function sfx(name){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==="suspended") actx.resume();
+    const t = actx.currentTime;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(0.0001,t);
+    if(name==="pop"){
+      o.type="sine"; o.frequency.setValueAtTime(420,t); o.frequency.exponentialRampToValueAtTime(720,t+0.08);
+      g.gain.exponentialRampToValueAtTime(0.12,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+      o.start(t); o.stop(t+0.18);
+    }else if(name==="kira"){
+      o.type="triangle";
+      o.frequency.setValueAtTime(880,t); o.frequency.setValueAtTime(1175,t+0.07); o.frequency.setValueAtTime(1568,t+0.14);
+      g.gain.exponentialRampToValueAtTime(0.1,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+      o.start(t); o.stop(t+0.32);
+    }else if(name==="poof"){
+      o.type="sine"; o.frequency.setValueAtTime(500,t); o.frequency.exponentialRampToValueAtTime(160,t+0.14);
+      g.gain.exponentialRampToValueAtTime(0.1,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      o.start(t); o.stop(t+0.2);
+    }else if(name==="tick"){
+      o.type="square"; o.frequency.setValueAtTime(900,t);
+      g.gain.exponentialRampToValueAtTime(0.05,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+      o.start(t); o.stop(t+0.06);
+    }else if(name==="nope"){
+      o.type="sawtooth"; o.frequency.setValueAtTime(220,t); o.frequency.setValueAtTime(180,t+0.08);
+      g.gain.exponentialRampToValueAtTime(0.06,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      o.start(t); o.stop(t+0.2);
+    }
+  }catch(e){}
+}
+
+/* ---------- リサイズ & ループ ---------- */
+/* ---------- スマホ視点補正 ---------- */
+const sheetEl = document.getElementById("sheet");
+function vpSize(){
+  // アプリ内ブラウザ(X等)では layout viewport と visual viewport がズレることがあり、
+  // innerHeight基準だと描画が縦に伸びて「マウスと表示範囲が違う」原因になる。
+  const v = window.visualViewport;
+  return v ? { w: Math.round(v.width), h: Math.round(v.height) } : { w: innerWidth, h: innerHeight };
+}
+function updateViewOffset(){
+  // カメラの注視点が「シートとトップバーを除いた可視領域の、上から38%」に来るよう
+  // 描画全体を上へスライドさせる（setViewOffsetの+yは下の領域を表示＝中身が上へ動く）。
+  const { w, h } = vpSize();
+  const sh = sheetEl ? sheetEl.offsetHeight : 0;
+  const topH = 64;
+  const visibleH = Math.max(200, h - sh - topH);
+  const desiredY = topH + visibleH * 0.38;
+  const off = Math.max(0, h / 2 - desiredY);
+  camera.setViewOffset(w, h, 0, off, w, h);
+}
+function frameRoom(){
+  // 現在の画面アスペクトと可視領域で、部屋がちょうどよく収まるズーム距離を決める。
+  const { h } = vpSize();
+  const vfov = camera.fov * Math.PI / 180;
+  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+  const span = (Math.max(ROOM.w, ROOM.d) / 2 + 2.2) * 1.12;
+  const dH = span / Math.tan(hfov / 2);
+  const sh = sheetEl ? sheetEl.offsetHeight : 0;
+  const visFrac = Math.max(0.4, (h - sh - 64) / h);
+  const dV = 8.0 / (2 * Math.tan(vfov / 2) * visFrac);
+  camCtl.dist = Math.max(8, Math.min(30, Math.max(dH, dV)));
+  camCtl.target.copy(cameraHomeTarget(activeLevel));
+  updateCamera();
+}
+if (window.ResizeObserver && sheetEl){
+  new ResizeObserver(()=>{
+    updateViewOffset();
+    if(touchPreview) showConfirmBar();   // バーの高さも追従
+  }).observe(sheetEl);
+}
+addEventListener("orientationchange", ()=>{ setTimeout(()=>{ resize(); frameRoom(); }, 250); });
+
+function resize(){
+  const { w, h } = vpSize();
+  renderer.setSize(w, h, false);
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  updateViewOffset();
+}
+addEventListener("resize", resize);
+if (window.visualViewport){
+  visualViewport.addEventListener("resize", resize);
+}
+resize();
+
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  const target = isDay?1:0;
+  dayBlend += (target-dayBlend)*Math.min(1, dt*2);
+  scene.background.copy(NIGHT.sky).lerp(DAY.sky, dayBlend);
+  hemi.intensity = NIGHT.hemi + (DAY.hemi-NIGHT.hemi)*dayBlend;
+  sun.intensity  = NIGHT.sun  + (DAY.sun -NIGHT.sun )*dayBlend;
+  const glowI = (1-dayBlend)*1.4;
+  for(const it of items){
+    if(it.group.userData.glow) it.group.userData.glow.intensity = glowI;
+    if(it.id==="tv" && it.group.userData.screen)
+      it.group.userData.screen.material.emissive.setRGB(0.5*(1-dayBlend), 0.6*(1-dayBlend), 0.7*(1-dayBlend));
+  }
+  for(const wi of wallItems){
+    if(wi.group && wi.group.userData.glow)
+      wi.group.userData.glow.intensity = glowI * (wi.group.userData.glow.userData._fade ?? 1);
+  }
+
+  updateWallFades(dt);
+  tickNature(clock.elapsedTime);
+
+  for(const c of clouds){
+    c.position.x += c.userData.speed*dt;
+    if(c.position.x>50) c.position.x=-50;
+  }
+
+  for(let i=tweens.length-1;i>=0;i--){
+    const tw = tweens[i];
+    tw.t += dt/tw.dur;
+    if(tw.t>=1){ tw.obj.scale.set(1,1,1); tweens.splice(i,1); }
+    else{ const s=easeOutBack(tw.t); tw.obj.scale.set(s,s,s); }
+  }
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.userData.life -= dt*1.6;
+    p.userData.v.y -= dt*4.5;
+    p.position.addScaledVector(p.userData.v, dt);
+    p.material.opacity = Math.max(0, p.userData.life);
+    p.scale.setScalar(Math.max(0.01, p.userData.life));
+    if(p.userData.life<=0){ scene.remove(p); particles.splice(i,1); }
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* ---------- 起動 ---------- */
+defaultRoom();
+setActiveLevel(0);
+updateViewOffset();
+frameRoom();
+animate();
+</script>
 </body>
-
 </html>
